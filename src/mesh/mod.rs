@@ -9,7 +9,9 @@ pub fn spawn_gizmo(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<GizmoMaterial>>,
+    mut std_materials: ResMut<Assets<StandardMaterial>>,
 ) {
+    info!("spawn_gizmo");
     let axis_length = 1.3;
     let arc_radius = 1.;
     let plane_size = axis_length * 0.25;
@@ -48,7 +50,7 @@ pub fn spawn_gizmo(
     });*/
     // Build the gizmo using the variables above.
     commands
-        .spawn(TransformGizmo)
+        .spawn((TransformGizmo, Transform::default(), Visibility::Visible))
         .with_children(|parent| {
             // Translation Axes
             parent.spawn((
@@ -63,7 +65,7 @@ pub fn spawn_gizmo(
                     axis: Vec3::X,
                 },
                 NotShadowCaster,
-                RenderLayers::layer(12),
+                //RenderLayers::layer(12),
             ));
             parent.spawn((
                 Mesh3d(arrow_tail_mesh.clone()),
@@ -77,7 +79,7 @@ pub fn spawn_gizmo(
                     axis: Vec3::Y,
                 },
                 NotShadowCaster,
-                RenderLayers::layer(12),
+                //RenderLayers::layer(12),
             ));
             parent.spawn((
                 Mesh3d(arrow_tail_mesh.clone()),
@@ -91,7 +93,7 @@ pub fn spawn_gizmo(
                     axis: Vec3::Z,
                 },
                 NotShadowCaster,
-                RenderLayers::layer(12),
+                //RenderLayers::layer(12),
             ));
 
             // Translation Handles
@@ -107,7 +109,7 @@ pub fn spawn_gizmo(
                     axis: Vec3::X,
                 },
                 NotShadowCaster,
-                RenderLayers::layer(12),
+                //RenderLayers::layer(12),
             ));
             parent.spawn((
                 Mesh3d(plane_mesh.clone()),
@@ -122,7 +124,7 @@ pub fn spawn_gizmo(
                 },
                 //NoBackfaceCulling,
                 NotShadowCaster,
-                RenderLayers::layer(12),
+                //RenderLayers::layer(12),
             ));
             parent.spawn((
                 Mesh3d(cone_mesh.clone()),
@@ -133,7 +135,7 @@ pub fn spawn_gizmo(
                     axis: Vec3::Y,
                 },
                 NotShadowCaster,
-                RenderLayers::layer(12),
+                //RenderLayers::layer(12),
             ));
             parent.spawn((
                 Mesh3d(plane_mesh.clone()),
@@ -145,7 +147,7 @@ pub fn spawn_gizmo(
                 },
                 //NoBackfaceCulling,
                 NotShadowCaster,
-                RenderLayers::layer(12),
+                //RenderLayers::layer(12),
             ));
             parent.spawn((
                 Mesh3d(cone_mesh.clone()),
@@ -159,7 +161,7 @@ pub fn spawn_gizmo(
                     axis: Vec3::Z,
                 },
                 NotShadowCaster,
-                RenderLayers::layer(12),
+                //RenderLayers::layer(12),
             ));
             parent.spawn((
                 Mesh3d(plane_mesh.clone()),
@@ -174,7 +176,7 @@ pub fn spawn_gizmo(
                 },
                 //NoBackfaceCulling,
                 NotShadowCaster,
-                RenderLayers::layer(12),
+                //RenderLayers::layer(12),
             ));
 
             parent.spawn((
@@ -185,7 +187,7 @@ pub fn spawn_gizmo(
                     normal: Vec3::Z,
                 },
                 NotShadowCaster,
-                RenderLayers::layer(12),
+                //RenderLayers::layer(12),
             ));
 
             // Rotation Arcs
@@ -198,7 +200,7 @@ pub fn spawn_gizmo(
                     axis: Vec3::X,
                 },
                 NotShadowCaster,
-                RenderLayers::layer(12),
+                //RenderLayers::layer(12),
             ));
             parent.spawn((
                 Mesh3d(rotation_mesh.clone()),
@@ -208,7 +210,7 @@ pub fn spawn_gizmo(
                     axis: Vec3::Y,
                 },
                 NotShadowCaster,
-                RenderLayers::layer(12),
+                //RenderLayers::layer(12),
             ));
             parent.spawn((
                 Mesh3d(rotation_mesh.clone()),
@@ -222,7 +224,7 @@ pub fn spawn_gizmo(
                     axis: Vec3::Z,
                 },
                 NotShadowCaster,
-                RenderLayers::layer(12),
+                //RenderLayers::layer(12),
             ));
         });
 }

@@ -1,7 +1,8 @@
 use bevy::prelude::*;
 
-mod mesh;
+pub mod mesh;
 mod gizmo_material;
+pub mod gizmo;
 
 #[derive(Component)]
 struct TransformGizmo;

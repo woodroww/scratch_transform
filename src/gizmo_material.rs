@@ -22,11 +22,11 @@ impl From<Color> for GizmoMaterial {
 
 impl Material for GizmoMaterial {
     fn vertex_shader() -> ShaderRef {
-        GIZMO_SHADER_HANDLE.into()
+        "shaders/gizmo_material.wgsl".into()
     }
 
     fn fragment_shader() -> ShaderRef {
-        GIZMO_SHADER_HANDLE.into()
+        "shaders/gizmo_material.wgsl".into()
     }
 
     fn alpha_mode(&self) -> AlphaMode {
