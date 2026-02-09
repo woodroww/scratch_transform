@@ -11,11 +11,12 @@ pub fn spawn_gizmo(
     mut materials: ResMut<Assets<GizmoMaterial>>,
     mut std_materials: ResMut<Assets<StandardMaterial>>,
 ) {
-    info!("spawn_gizmo");
+    // Define gizmo size
     let axis_length = 1.3;
     let arc_radius = 1.;
     let plane_size = axis_length * 0.25;
     let plane_offset = plane_size / 2. + axis_length * 0.2;
+
     // Define gizmo meshes
     let arrow_tail_mesh = meshes.add(Capsule3d {
         radius: 0.04,
@@ -33,7 +34,7 @@ pub fn spawn_gizmo(
         ring_radius: 0.04,
         ..Default::default()
     }));
-    //let cube_mesh = meshes.add(Mesh::from(shape::Cube { size: 0.15 }));
+
     // Define gizmo materials
     let (s, l) = (0.8, 0.6);
     let gizmo_matl_x = materials.add(GizmoMaterial::from(Color::hsl(0.0, s, l)));
@@ -43,11 +44,38 @@ pub fn spawn_gizmo(
     let gizmo_matl_y_sel = materials.add(GizmoMaterial::from(Color::hsl(120.0, s, l)));
     let gizmo_matl_z_sel = materials.add(GizmoMaterial::from(Color::hsl(240.0, s, l)));
     let gizmo_matl_v_sel = materials.add(GizmoMaterial::from(Color::hsl(0., 0.0, l)));
-    /*let gizmo_matl_origin = materials.add(StandardMaterial {
-        unlit: true,
-        base_color: Color::rgb(0.7, 0.7, 0.7),
+
+    /*
+    let gizmo_matl_x = std_materials.add(StandardMaterial {
+        base_color: Color::hsl(0.0, s, l),
         ..Default::default()
-    });*/
+    });
+    let gizmo_matl_y = std_materials.add(StandardMaterial {
+        base_color: Color::hsl(120.0, s, l),
+        ..Default::default()
+    });
+    let gizmo_matl_z = std_materials.add(StandardMaterial {
+        base_color: Color::hsl(240.0, s, l),
+        ..Default::default()
+    });
+    let gizmo_matl_x_sel = std_materials.add(StandardMaterial {
+        base_color: Color::hsl(0.0, s, l),
+        ..Default::default()
+    });
+    let gizmo_matl_y_sel = std_materials.add(StandardMaterial {
+        base_color: Color::hsl(120.0, s, l),
+        ..Default::default()
+    });
+    let gizmo_matl_z_sel = std_materials.add(StandardMaterial {
+        base_color: Color::hsl(240.0, s, l),
+        ..Default::default()
+    });
+    let gizmo_matl_v_sel = std_materials.add(StandardMaterial {
+        base_color: Color::hsl(0., 0.0, l),
+        ..Default::default()
+    });
+*/
+
     // Build the gizmo using the variables above.
     commands
         .spawn((TransformGizmo, Transform::default(), Visibility::Visible))

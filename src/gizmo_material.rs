@@ -1,10 +1,13 @@
 use bevy::{
-    asset::uuid_handle, mesh::MeshVertexBufferLayoutRef, pbr::{MaterialPipeline, MaterialPipelineKey}, prelude::*, reflect::TypePath, render::render_resource::{
-            AsBindGroup, RenderPipelineDescriptor, SpecializedMeshPipelineError,
-        }, shader::ShaderRef
+    mesh::MeshVertexBufferLayoutRef,
+    pbr::{MaterialPipeline, MaterialPipelineKey},
+    prelude::*,
+    reflect::TypePath,
+    render::render_resource::{
+        AsBindGroup, RenderPipelineDescriptor, SpecializedMeshPipelineError,
+    },
+    shader::ShaderRef,
 };
-
-const GIZMO_SHADER_HANDLE: Handle<Shader> = uuid_handle!("BB2F9219-6C9B-4D1A-A152-B300F7F9B165");
 
 #[derive(Asset, TypePath, AsBindGroup, Debug, Clone)]
 pub struct GizmoMaterial {
@@ -21,9 +24,11 @@ impl From<Color> for GizmoMaterial {
 }
 
 impl Material for GizmoMaterial {
+    /*
     fn vertex_shader() -> ShaderRef {
         "shaders/gizmo_material.wgsl".into()
     }
+    */
 
     fn fragment_shader() -> ShaderRef {
         "shaders/gizmo_material.wgsl".into()
