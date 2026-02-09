@@ -1,5 +1,8 @@
-use crate::{TransformGizmo, TransformGizmoInteraction, gizmo_material::GizmoMaterial};
-use bevy::{camera::visibility::RenderLayers, light::NotShadowCaster, prelude::*};
+use crate::{
+    gizmo::{TransformGizmo, TransformGizmoInteraction, click_axis, click_plane, click_rotate, drag_axis, drag_plane, drag_rotate},
+    gizmo_material::GizmoMaterial,
+};
+use bevy::{light::NotShadowCaster, prelude::*};
 
 mod cone;
 mod truncated_torus;
@@ -9,7 +12,6 @@ pub fn spawn_gizmo(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<GizmoMaterial>>,
-    mut std_materials: ResMut<Assets<StandardMaterial>>,
 ) {
     // Define gizmo size
     let axis_length = 1.3;
@@ -45,214 +47,222 @@ pub fn spawn_gizmo(
     let gizmo_matl_z_sel = materials.add(GizmoMaterial::from(Color::hsl(240.0, s, l)));
     let gizmo_matl_v_sel = materials.add(GizmoMaterial::from(Color::hsl(0., 0.0, l)));
 
-    /*
-    let gizmo_matl_x = std_materials.add(StandardMaterial {
-        base_color: Color::hsl(0.0, s, l),
-        ..Default::default()
-    });
-    let gizmo_matl_y = std_materials.add(StandardMaterial {
-        base_color: Color::hsl(120.0, s, l),
-        ..Default::default()
-    });
-    let gizmo_matl_z = std_materials.add(StandardMaterial {
-        base_color: Color::hsl(240.0, s, l),
-        ..Default::default()
-    });
-    let gizmo_matl_x_sel = std_materials.add(StandardMaterial {
-        base_color: Color::hsl(0.0, s, l),
-        ..Default::default()
-    });
-    let gizmo_matl_y_sel = std_materials.add(StandardMaterial {
-        base_color: Color::hsl(120.0, s, l),
-        ..Default::default()
-    });
-    let gizmo_matl_z_sel = std_materials.add(StandardMaterial {
-        base_color: Color::hsl(240.0, s, l),
-        ..Default::default()
-    });
-    let gizmo_matl_v_sel = std_materials.add(StandardMaterial {
-        base_color: Color::hsl(0., 0.0, l),
-        ..Default::default()
-    });
-*/
-
     // Build the gizmo using the variables above.
     commands
-        .spawn((TransformGizmo, Transform::default(), Visibility::Visible))
+        .spawn((TransformGizmo::default(), Transform::default(), Visibility::Visible))
         .with_children(|parent| {
             // Translation Axes
-            parent.spawn((
-                Mesh3d(arrow_tail_mesh.clone()),
-                MeshMaterial3d(gizmo_matl_x.clone()),
-                Transform::from_matrix(Mat4::from_rotation_translation(
-                    Quat::from_rotation_z(std::f32::consts::PI / 2.0),
-                    Vec3::new(axis_length / 2.0, 0.0, 0.0),
-                )),
-                TransformGizmoInteraction::TranslateAxis {
-                    original: Vec3::X,
-                    axis: Vec3::X,
-                },
-                NotShadowCaster,
-                //RenderLayers::layer(12),
-            ));
-            parent.spawn((
-                Mesh3d(arrow_tail_mesh.clone()),
-                MeshMaterial3d(gizmo_matl_y.clone()),
-                Transform::from_matrix(Mat4::from_rotation_translation(
-                    Quat::from_rotation_y(std::f32::consts::PI / 2.0),
-                    Vec3::new(0.0, axis_length / 2.0, 0.0),
-                )),
-                TransformGizmoInteraction::TranslateAxis {
-                    original: Vec3::Y,
-                    axis: Vec3::Y,
-                },
-                NotShadowCaster,
-                //RenderLayers::layer(12),
-            ));
-            parent.spawn((
-                Mesh3d(arrow_tail_mesh.clone()),
-                MeshMaterial3d(gizmo_matl_z.clone()),
-                Transform::from_matrix(Mat4::from_rotation_translation(
-                    Quat::from_rotation_x(std::f32::consts::PI / 2.0),
-                    Vec3::new(0.0, 0.0, axis_length / 2.0),
-                )),
-                TransformGizmoInteraction::TranslateAxis {
-                    original: Vec3::Z,
-                    axis: Vec3::Z,
-                },
-                NotShadowCaster,
-                //RenderLayers::layer(12),
-            ));
+            parent
+                .spawn((
+                    Mesh3d(arrow_tail_mesh.clone()),
+                    MeshMaterial3d(gizmo_matl_x.clone()),
+                    Transform::from_matrix(Mat4::from_rotation_translation(
+                        Quat::from_rotation_z(std::f32::consts::PI / 2.0),
+                        Vec3::new(axis_length / 2.0, 0.0, 0.0),
+                    )),
+                    TransformGizmoInteraction::TranslateAxis {
+                        original: Vec3::X,
+                        axis: Vec3::X,
+                    },
+                    NotShadowCaster,
+                    //RenderLayers::layer(12),
+                ))
+                .observe(click_axis)
+                .observe(drag_axis);
+            parent
+                .spawn((
+                    Mesh3d(arrow_tail_mesh.clone()),
+                    MeshMaterial3d(gizmo_matl_y.clone()),
+                    Transform::from_matrix(Mat4::from_rotation_translation(
+                        Quat::from_rotation_y(std::f32::consts::PI / 2.0),
+                        Vec3::new(0.0, axis_length / 2.0, 0.0),
+                    )),
+                    TransformGizmoInteraction::TranslateAxis {
+                        original: Vec3::Y,
+                        axis: Vec3::Y,
+                    },
+                    NotShadowCaster,
+                    //RenderLayers::layer(12),
+                ))
+                .observe(click_axis)
+                .observe(drag_axis);
+            parent
+                .spawn((
+                    Mesh3d(arrow_tail_mesh.clone()),
+                    MeshMaterial3d(gizmo_matl_z.clone()),
+                    Transform::from_matrix(Mat4::from_rotation_translation(
+                        Quat::from_rotation_x(std::f32::consts::PI / 2.0),
+                        Vec3::new(0.0, 0.0, axis_length / 2.0),
+                    )),
+                    TransformGizmoInteraction::TranslateAxis {
+                        original: Vec3::Z,
+                        axis: Vec3::Z,
+                    },
+                    NotShadowCaster,
+                    //RenderLayers::layer(12),
+                ))
+                .observe(click_axis)
+                .observe(drag_axis);
 
             // Translation Handles
-            parent.spawn((
-                Mesh3d(cone_mesh.clone()),
-                MeshMaterial3d(gizmo_matl_x_sel.clone()),
-                Transform::from_matrix(Mat4::from_rotation_translation(
-                    Quat::from_rotation_z(std::f32::consts::PI / -2.0),
-                    Vec3::new(axis_length, 0.0, 0.0),
-                )),
-                TransformGizmoInteraction::TranslateAxis {
-                    original: Vec3::X,
-                    axis: Vec3::X,
-                },
-                NotShadowCaster,
-                //RenderLayers::layer(12),
-            ));
-            parent.spawn((
-                Mesh3d(plane_mesh.clone()),
-                MeshMaterial3d(gizmo_matl_x_sel.clone()),
-                Transform::from_matrix(Mat4::from_rotation_translation(
-                    Quat::from_rotation_z(std::f32::consts::PI / -2.0),
-                    Vec3::new(0., plane_offset, plane_offset),
-                )),
-                TransformGizmoInteraction::TranslatePlane {
-                    original: Vec3::X,
-                    normal: Vec3::X,
-                },
-                //NoBackfaceCulling,
-                NotShadowCaster,
-                //RenderLayers::layer(12),
-            ));
-            parent.spawn((
-                Mesh3d(cone_mesh.clone()),
-                MeshMaterial3d(gizmo_matl_y_sel.clone()),
-                Transform::from_translation(Vec3::new(0.0, axis_length, 0.0)),
-                TransformGizmoInteraction::TranslateAxis {
-                    original: Vec3::Y,
-                    axis: Vec3::Y,
-                },
-                NotShadowCaster,
-                //RenderLayers::layer(12),
-            ));
-            parent.spawn((
-                Mesh3d(plane_mesh.clone()),
-                MeshMaterial3d(gizmo_matl_y_sel.clone()),
-                Transform::from_translation(Vec3::new(plane_offset, 0.0, plane_offset)),
-                TransformGizmoInteraction::TranslatePlane {
-                    original: Vec3::Y,
-                    normal: Vec3::Y,
-                },
-                //NoBackfaceCulling,
-                NotShadowCaster,
-                //RenderLayers::layer(12),
-            ));
-            parent.spawn((
-                Mesh3d(cone_mesh.clone()),
-                MeshMaterial3d(gizmo_matl_z_sel.clone()),
-                Transform::from_matrix(Mat4::from_rotation_translation(
-                    Quat::from_rotation_x(std::f32::consts::PI / 2.0),
-                    Vec3::new(0.0, 0.0, axis_length),
-                )),
-                TransformGizmoInteraction::TranslateAxis {
-                    original: Vec3::Z,
-                    axis: Vec3::Z,
-                },
-                NotShadowCaster,
-                //RenderLayers::layer(12),
-            ));
-            parent.spawn((
-                Mesh3d(plane_mesh.clone()),
-                MeshMaterial3d(gizmo_matl_z_sel.clone()),
-                Transform::from_matrix(Mat4::from_rotation_translation(
-                    Quat::from_rotation_x(std::f32::consts::PI / 2.0),
-                    Vec3::new(plane_offset, plane_offset, 0.0),
-                )),
-                TransformGizmoInteraction::TranslatePlane {
-                    original: Vec3::Z,
-                    normal: Vec3::Z,
-                },
-                //NoBackfaceCulling,
-                NotShadowCaster,
-                //RenderLayers::layer(12),
-            ));
+            parent
+                .spawn((
+                    Mesh3d(cone_mesh.clone()),
+                    MeshMaterial3d(gizmo_matl_x_sel.clone()),
+                    Transform::from_matrix(Mat4::from_rotation_translation(
+                        Quat::from_rotation_z(std::f32::consts::PI / -2.0),
+                        Vec3::new(axis_length, 0.0, 0.0),
+                    )),
+                    TransformGizmoInteraction::TranslateAxis {
+                        original: Vec3::X,
+                        axis: Vec3::X,
+                    },
+                    NotShadowCaster,
+                    //RenderLayers::layer(12),
+                ))
+                .observe(click_axis)
+                .observe(drag_axis);
+            parent
+                .spawn((
+                    Mesh3d(plane_mesh.clone()),
+                    MeshMaterial3d(gizmo_matl_x_sel.clone()),
+                    Transform::from_matrix(Mat4::from_rotation_translation(
+                        Quat::from_rotation_z(std::f32::consts::PI / -2.0),
+                        Vec3::new(0., plane_offset, plane_offset),
+                    )),
+                    TransformGizmoInteraction::TranslatePlane {
+                        original: Vec3::X,
+                        normal: Vec3::X,
+                    },
+                    //NoBackfaceCulling,
+                    NotShadowCaster,
+                    //RenderLayers::layer(12),
+                ))
+                .observe(click_plane)
+                .observe(drag_plane);
+            parent
+                .spawn((
+                    Mesh3d(cone_mesh.clone()),
+                    MeshMaterial3d(gizmo_matl_y_sel.clone()),
+                    Transform::from_translation(Vec3::new(0.0, axis_length, 0.0)),
+                    TransformGizmoInteraction::TranslateAxis {
+                        original: Vec3::Y,
+                        axis: Vec3::Y,
+                    },
+                    NotShadowCaster,
+                    //RenderLayers::layer(12),
+                ))
+                .observe(click_axis)
+                .observe(drag_axis);
+            parent
+                .spawn((
+                    Mesh3d(plane_mesh.clone()),
+                    MeshMaterial3d(gizmo_matl_y_sel.clone()),
+                    Transform::from_translation(Vec3::new(plane_offset, 0.0, plane_offset)),
+                    TransformGizmoInteraction::TranslatePlane {
+                        original: Vec3::Y,
+                        normal: Vec3::Y,
+                    },
+                    //NoBackfaceCulling,
+                    NotShadowCaster,
+                    //RenderLayers::layer(12),
+                ))
+                .observe(click_plane)
+                .observe(drag_plane);
+            parent
+                .spawn((
+                    Mesh3d(cone_mesh.clone()),
+                    MeshMaterial3d(gizmo_matl_z_sel.clone()),
+                    Transform::from_matrix(Mat4::from_rotation_translation(
+                        Quat::from_rotation_x(std::f32::consts::PI / 2.0),
+                        Vec3::new(0.0, 0.0, axis_length),
+                    )),
+                    TransformGizmoInteraction::TranslateAxis {
+                        original: Vec3::Z,
+                        axis: Vec3::Z,
+                    },
+                    NotShadowCaster,
+                    //RenderLayers::layer(12),
+                ))
+                .observe(click_axis)
+                .observe(drag_axis);
+            parent
+                .spawn((
+                    Mesh3d(plane_mesh.clone()),
+                    MeshMaterial3d(gizmo_matl_z_sel.clone()),
+                    Transform::from_matrix(Mat4::from_rotation_translation(
+                        Quat::from_rotation_x(std::f32::consts::PI / 2.0),
+                        Vec3::new(plane_offset, plane_offset, 0.0),
+                    )),
+                    TransformGizmoInteraction::TranslatePlane {
+                        original: Vec3::Z,
+                        normal: Vec3::Z,
+                    },
+                    //NoBackfaceCulling,
+                    NotShadowCaster,
+                    //RenderLayers::layer(12),
+                ))
+                .observe(click_plane)
+                .observe(drag_plane);
 
-            parent.spawn((
-                Mesh3d(sphere_mesh.clone()),
-                MeshMaterial3d(gizmo_matl_v_sel.clone()),
-                TransformGizmoInteraction::TranslatePlane {
-                    original: Vec3::ZERO,
-                    normal: Vec3::Z,
-                },
-                NotShadowCaster,
-                //RenderLayers::layer(12),
-            ));
+            parent
+                .spawn((
+                    Mesh3d(sphere_mesh.clone()),
+                    MeshMaterial3d(gizmo_matl_v_sel.clone()),
+                    TransformGizmoInteraction::TranslatePlane {
+                        original: Vec3::ZERO,
+                        normal: Vec3::Z,
+                    },
+                    NotShadowCaster,
+                    //RenderLayers::layer(12),
+                ))
+                .observe(click_plane)
+                .observe(drag_plane);
 
             // Rotation Arcs
-            parent.spawn((
-                Mesh3d(rotation_mesh.clone()),
-                MeshMaterial3d(gizmo_matl_x.clone()),
-                Transform::from_rotation(Quat::from_axis_angle(Vec3::Z, f32::to_radians(90.0))),
-                TransformGizmoInteraction::RotateAxis {
-                    original: Vec3::X,
-                    axis: Vec3::X,
-                },
-                NotShadowCaster,
-                //RenderLayers::layer(12),
-            ));
-            parent.spawn((
-                Mesh3d(rotation_mesh.clone()),
-                MeshMaterial3d(gizmo_matl_y.clone()),
-                TransformGizmoInteraction::RotateAxis {
-                    original: Vec3::Y,
-                    axis: Vec3::Y,
-                },
-                NotShadowCaster,
-                //RenderLayers::layer(12),
-            ));
-            parent.spawn((
-                Mesh3d(rotation_mesh.clone()),
-                MeshMaterial3d(gizmo_matl_z.clone()),
-                Transform::from_rotation(
-                    Quat::from_axis_angle(Vec3::Z, f32::to_radians(90.0))
-                        * Quat::from_axis_angle(Vec3::X, f32::to_radians(90.0)),
-                ),
-                TransformGizmoInteraction::RotateAxis {
-                    original: Vec3::Z,
-                    axis: Vec3::Z,
-                },
-                NotShadowCaster,
-                //RenderLayers::layer(12),
-            ));
+            parent
+                .spawn((
+                    Mesh3d(rotation_mesh.clone()),
+                    MeshMaterial3d(gizmo_matl_x.clone()),
+                    Transform::from_rotation(Quat::from_axis_angle(Vec3::Z, f32::to_radians(90.0))),
+                    TransformGizmoInteraction::RotateAxis {
+                        original: Vec3::X,
+                        axis: Vec3::X,
+                    },
+                    NotShadowCaster,
+                    //RenderLayers::layer(12),
+                ))
+                .observe(click_rotate)
+                .observe(drag_rotate);
+            parent
+                .spawn((
+                    Mesh3d(rotation_mesh.clone()),
+                    MeshMaterial3d(gizmo_matl_y.clone()),
+                    TransformGizmoInteraction::RotateAxis {
+                        original: Vec3::Y,
+                        axis: Vec3::Y,
+                    },
+                    NotShadowCaster,
+                    //RenderLayers::layer(12),
+                ))
+                .observe(click_rotate)
+                .observe(drag_rotate);
+            parent
+                .spawn((
+                    Mesh3d(rotation_mesh.clone()),
+                    MeshMaterial3d(gizmo_matl_z.clone()),
+                    Transform::from_rotation(
+                        Quat::from_axis_angle(Vec3::Z, f32::to_radians(90.0))
+                            * Quat::from_axis_angle(Vec3::X, f32::to_radians(90.0)),
+                    ),
+                    TransformGizmoInteraction::RotateAxis {
+                        original: Vec3::Z,
+                        axis: Vec3::Z,
+                    },
+                    NotShadowCaster,
+                    //RenderLayers::layer(12),
+                ))
+                .observe(click_rotate)
+                .observe(drag_rotate);
         });
 }

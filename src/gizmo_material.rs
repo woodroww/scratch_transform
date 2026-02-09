@@ -24,11 +24,9 @@ impl From<Color> for GizmoMaterial {
 }
 
 impl Material for GizmoMaterial {
-    /*
     fn vertex_shader() -> ShaderRef {
         "shaders/gizmo_material.wgsl".into()
     }
-    */
 
     fn fragment_shader() -> ShaderRef {
         "shaders/gizmo_material.wgsl".into()

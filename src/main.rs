@@ -2,8 +2,7 @@ use bevy::prelude::*;
 use bevy_inspector_egui::bevy_egui::EguiPlugin;
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
 use bevy_panorbit_camera::{PanOrbitCamera, PanOrbitCameraPlugin};
-use scratch_transform::PickSelection;
-use scratch_transform::gizmo::TransformGizmoPlugin;
+use scratch_transform::gizmo::{GizmoPickSource, PickSelection, TransformGizmoPlugin};
 
 fn main() {
     App::new()
@@ -43,7 +42,7 @@ fn setup(
             MeshMaterial3d(materials.add(StandardMaterial::from(red))),
             Transform::from_xyz(-1.0, 0.0, 0.0),
             PickSelection { is_selected: false },
-            Visibility::Hidden,
+            //Visibility::Hidden,
         ))
         .observe(cube_click)
         .with_children(|commands| {
@@ -72,7 +71,11 @@ fn setup(
     commands.spawn((
         Camera3d::default(),
         Transform::from_xyz(2.0, 2.5, 5.0).looking_at(Vec3::ZERO, Vec3::Y),
-        PanOrbitCamera::default(),
+        PanOrbitCamera {
+            button_orbit: MouseButton::Middle,
+            ..default()
+        },
+        GizmoPickSource,
     ));
 }
 
