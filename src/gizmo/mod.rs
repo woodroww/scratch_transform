@@ -1,4 +1,4 @@
-use bevy::{color::palettes::css::{PURPLE, TEAL, YELLOW}, picking::backend::PointerHits, prelude::*, window::PrimaryWindow};
+use bevy::{color::palettes::{basic::AQUA, css::{FUCHSIA, GREEN, LIME, PURPLE, RED, TEAL, YELLOW}}, picking::backend::PointerHits, prelude::*, window::PrimaryWindow};
 use bevy_inspector_egui::{
     bevy_egui::{EguiContexts, EguiPrimaryContextPass},
     egui::{self, Color32, RichText},
@@ -36,7 +36,7 @@ pub struct TransformGizmo {
     // much total dragging has occurred without accumulating error across frames.
     drag_start: Option<Vec3>,
     // Initial transform of the gizmo
-    initial_transform: Option<GlobalTransform>,
+    initial_transform: Option<Transform>,
 }
 
 pub fn ray_from_screenspace(
@@ -179,7 +179,7 @@ pub fn click_axis(
 
     transform_gizmo.current_interaction = Some(*interaction);
     transform_gizmo.drag_start = Some(min_data.unwrap().position.unwrap());
-    transform_gizmo.initial_transform = Some(*main_global_transform);
+    transform_gizmo.initial_transform = Some(*main_transform);
 }
 
 pub fn drag_axis(
@@ -188,6 +188,15 @@ pub fn drag_axis(
     windows: Query<&mut Window, With<PrimaryWindow>>,
     mut gizmo_query: Query<(&mut Transform, &GlobalTransform, &mut TransformGizmo)>,
     mut debug_vectors: ResMut<DebugVectors>,
+    mut transform_query: Query<
+        (
+            &PickSelection,
+            Option<&ChildOf>,
+            &mut Transform,
+        ),
+        Without<TransformGizmo>,
+    >,
+    parent_query: Query<&GlobalTransform>,
 ) {
     //info!("drag_axis");
 
@@ -198,7 +207,7 @@ pub fn drag_axis(
         warn!("error gizmo_query.single_mut() len: {}", len);
         return;
     };
-    let Some(initial_global_transform) = gizmo.initial_transform else {
+    let Some(initial_transform) = gizmo.initial_transform else {
         warn!("no gizmo.initial_transform");
         return;
     };
@@ -244,10 +253,16 @@ pub fn drag_axis(
         return;
     };
     let cursor_vector: Vec3 = cursor_plane_intersection - plane_origin;
-    let selected_handle_vec = gizmo_origin - plane_origin;
-    let new_handle_vec =
-        cursor_vector.dot(selected_handle_vec.normalize()) * selected_handle_vec.normalize();
-    let translation = new_handle_vec - selected_handle_vec;
+
+    // initial click PlaneOrigin vectors.plane_origin
+    // drag location CursorPlaneIntersection  vectors.cursor_plane_intersection
+    let length = cursor_vector.length();
+    dbg!(length);
+    dbg!(axis);
+
+    let dir_len = length * axis;
+    dbg!(dir_len);
+    let what = initial_transform.translation + dir_len;
 
     *debug_vectors = DebugVectors {
         vertical_vector,
@@ -255,15 +270,12 @@ pub fn drag_axis(
         plane_origin,
         cursor_plane_intersection,
         cursor_vector,
-        selected_handle_vec,
-        new_handle_vec,
-        translation,
+        selected_handle_vec: Vec3::default(),
+        new_handle_vec: Vec3::default(),
+        translation: Vec3::default(),
     };
 
-    let mut alter = *gizmo_local_transform;
-    alter.translation.x += 0.01;
-    *gizmo_local_transform = alter;
-    //gizmo_local_transform.translation = translation;
+    gizmo_local_transform.translation = what;
 }
 
 #[derive(Resource, Default)]
@@ -298,30 +310,35 @@ impl WhichDebugVector {
         let color = self.color().to_srgba();
         Color32::from_rgba_unmultiplied(
             (color.red * 255.0) as u8,
-            (color.blue * 255.0) as u8,
             (color.green * 255.0) as u8,
+            (color.blue * 255.0) as u8,
             (color.alpha * 255.0) as u8,
         )
     }
     fn color(&self) -> Color {
         match self {
             WhichDebugVector::VerticalVector => {
-                Color::srgba(0.3, 0.7, 0.3, 1.0)
+                //Color::srgba(0.3, 0.7, 0.3, 1.0)
+                AQUA.into()
             }
             WhichDebugVector::PlaneNormal => {
-                Color::srgba(0.3, 0.3, 0.7, 1.0)
+                //Color::srgba(0.3, 0.3, 0.7, 1.0)
+                RED.into()
             }
             WhichDebugVector::PlaneOrigin => {
-                Color::srgba(222.0/255.0, 190.0/255.0, 122.0/255.0, 1.0)
+                //Color::srgba(222.0/255.0, 190.0/255.0, 122.0/255.0, 1.0)
+                YELLOW.into()
             }
             WhichDebugVector::CursorPlaneIntersection => {
-                Color::srgba(0.7, 0.3, 0.3, 1.0)
+                //Color::srgba(0.7, 0.3, 0.3, 1.0)
+                LIME.into()
             }
             WhichDebugVector::CursorVector => {
-                Color::srgb_u8(190, 135, 94)
+                //Color::srgb_u8(190, 135, 94)
+                PURPLE.into()
             }
             WhichDebugVector::SelectedHandleVector => {
-                PURPLE.into()
+                GREEN.into()
             }
             WhichDebugVector::NewHandleVector => {
                 TEAL.into()
@@ -357,6 +374,15 @@ fn debug_ui(
         } else {
             ui.label("gizmo.............error");
         }
+        // initial click
+        let color = WhichDebugVector::PlaneOrigin.egui_color();
+        let color_txt = RichText::new(format!("plane_origin......{}", vectors.plane_origin)).color(color);
+        ui.label(color_txt);
+
+        // drag location
+        let color = WhichDebugVector::CursorPlaneIntersection.egui_color();
+        let color_txt = RichText::new(format!("cursor_plane_inte.{}", vectors.cursor_plane_intersection)).color(color);
+        ui.label(color_txt);
 
 
         let color = WhichDebugVector::VerticalVector.egui_color();
@@ -367,14 +393,11 @@ fn debug_ui(
         let color_txt = RichText::new(format!("plane_normal......{}", vectors.plane_normal)).color(color);
         ui.label(color_txt);
 
-        let color = WhichDebugVector::CursorPlaneIntersection.egui_color();
-        let color_txt = RichText::new(format!("cursor_plane_inte.{}", vectors.cursor_plane_intersection)).color(color);
-        ui.label(color_txt);
-
         let color = WhichDebugVector::CursorVector.egui_color();
         let color_txt = RichText::new(format!("cursor_vector.....{}", vectors.cursor_vector)).color(color);
         ui.label(color_txt);
 
+        /*
         let color = WhichDebugVector::SelectedHandleVector.egui_color();
         let color_txt = RichText::new(format!("selected_handle_v.{}", vectors.selected_handle_vec)).color(color);
         ui.label(color_txt);
@@ -386,7 +409,7 @@ fn debug_ui(
         let color = WhichDebugVector::Translation.egui_color();
         let color_txt = RichText::new(format!("translation.......{}", vectors.translation)).color(color);
         ui.label(color_txt);
-
+*/
     });
 }
 
@@ -516,6 +539,7 @@ fn setup_debug_vectors(
             ));
         });
 
+    /*
     commands
         .spawn((
             WhichDebugVector::SelectedHandleVector,
@@ -581,6 +605,7 @@ fn setup_debug_vectors(
                 })),
             ));
         });
+*/
 }
 
 
