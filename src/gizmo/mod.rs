@@ -1,11 +1,15 @@
-use bevy::{picking::hover::PickingInteraction, prelude::*, window::PrimaryWindow};
+use bevy::{picking::backend::PointerHits, prelude::*, window::PrimaryWindow};
+use bevy_inspector_egui::{
+    bevy_egui::{EguiContexts, EguiPrimaryContextPass},
+    egui,
+};
 
-use crate::gizmo_material::GizmoMaterial;
+use crate::{gizmo_material::GizmoMaterial, mesh::cone};
 
 #[derive(Component)]
 pub struct GizmoPickSource;
 
-#[derive(Component)]
+#[derive(Component, Debug)]
 pub struct PickSelection {
     pub is_selected: bool,
 }
@@ -31,7 +35,6 @@ pub struct TransformGizmo {
     // Point in space where mouse-gizmo interaction started (on mouse down), used to compare how
     // much total dragging has occurred without accumulating error across frames.
     drag_start: Option<Vec3>,
-    origin_drag_start: Option<Vec3>,
     // Initial transform of the gizmo
     initial_transform: Option<GlobalTransform>,
 }
@@ -68,7 +71,10 @@ pub struct TransformGizmoPlugin;
 
 impl Plugin for TransformGizmoPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Startup, crate::mesh::spawn_gizmo)
+        app.add_systems(Startup, (crate::mesh::spawn_gizmo, setup_vectors))
+            .insert_resource(DebugVectors::default())
+            .add_systems(EguiPrimaryContextPass, debug_some_vectors)
+            .add_systems(Update, update_vectors.run_if(resource_changed::<DebugVectors>))
             .add_plugins(MaterialPlugin::<GizmoMaterial>::default())
             .add_observer(on_component_added);
     }
@@ -81,32 +87,116 @@ fn on_component_added(event: On<Add, TransformGizmo>) {
     );
 }
 
-pub fn click_axis(drag: On<Pointer<DragStart>>) {
-    info!("click_axis");
+pub fn debug_print_hits(
+    msg_i: usize,
+    hit: &PointerHits,
+    transform_query: &Query<
+        (&TransformGizmoInteraction, Option<&ChildOf>, &mut Transform),
+        Without<TransformGizmo>,
+    >,
+    drag: &On<Pointer<DragStart>>,
+) {
+    for (i, pick) in hit.picks.iter().enumerate() {
+        println!("msg_i: {}, pick: {}", msg_i, i);
+        println!("\tposition: {:?}", pick.1.position);
+        println!("\tnormal:   {:?}", pick.1.normal);
+        println!("\tdepth:    {:?}", pick.1.depth);
+        match transform_query.get(pick.0) {
+            Ok((interaction, _child_of, _transform)) => {
+                if drag.entity == pick.0 {
+                    println!("\tGIZMO:    {:?}", interaction);
+                } else {
+                    println!("\tgizmo:    {:?}", interaction);
+                }
+            }
+            Err(_) => {
+                println!("\tgizmo:    None");
+            }
+        }
+    }
+}
+
+pub fn click_axis(
+    drag: On<Pointer<DragStart>>,
+    mut commands: Commands,
+    transform_query: Query<
+        (&TransformGizmoInteraction, Option<&ChildOf>, &mut Transform),
+        Without<TransformGizmo>,
+    >,
+    mut gizmo: Query<(&GlobalTransform, &Transform, &mut TransformGizmo)>,
+    mut hit_reader: MessageReader<PointerHits>,
+) {
+    debug_assert_eq!(transform_query.iter().len(), 13);
+
+    let mut min_depth = f32::MAX;
+    let mut min_entity = None;
+    let mut min_data = None;
+    for hit_message in hit_reader.read() {
+        //debug_print_hits(msg_i, hit_message, &transform_query, &drag);
+        for (_hit_i, data) in
+            hit_message
+                .picks
+                .iter()
+                .enumerate()
+                .filter_map(|(hit_i, (entity, data))| {
+                    if *entity == drag.entity {
+                        Some((hit_i, data))
+                    } else {
+                        None
+                    }
+                })
+        {
+            if data.depth != 0.0 && data.depth < min_depth {
+                min_depth = data.depth;
+                min_entity = Some(drag.entity);
+                min_data = Some(data);
+            }
+        }
+    }
+
+    let position = drag.pointer_location.position;
+
+    info!("click position: {:#?}", position);
+    println!("min entity: {:?}", min_entity);
+    debug_assert_eq!(min_entity, Some(drag.entity));
+    println!("min data:   {:?}", min_data);
+
+    // if there are multiple gizmos allowed we're going to have to find the one clicked
+    // but for now this
+    let Ok((main_global_transform, main_transform, mut transform_gizmo)) = gizmo.single_mut()
+    else {
+        warn!("getting main gizmo error");
+        return;
+    };
+
+    let Ok((interaction, child_of, transform)) = transform_query.get(drag.entity) else {
+        warn!("transform_query couldn't find entity from click");
+        return;
+    };
+
+    transform_gizmo.current_interaction = Some(*interaction);
+    transform_gizmo.drag_start = Some(min_data.unwrap().position.unwrap());
+    transform_gizmo.initial_transform = Some(*main_global_transform);
 }
 
 pub fn drag_axis(
     drag: On<Pointer<Drag>>,
     pick_cam: Query<(&Camera, &GlobalTransform), With<GizmoPickSource>>,
-    query: Query<&TransformGizmoInteraction>,
     windows: Query<&mut Window, With<PrimaryWindow>>,
     mut gizmo_query: Query<(&mut Transform, &GlobalTransform, &mut TransformGizmo)>,
-    mut transform_query: Query<
-        (
-            &PickSelection,
-            Option<&ChildOf>,
-            &mut Transform,
-            &InitialTransform,
-        ),
-        Without<TransformGizmo>,
-    >,
-    parent_query: Query<&GlobalTransform>,
+    mut debug_vectors: ResMut<DebugVectors>,
 ) {
-    info!("drag_axis");
+    //info!("drag_axis");
 
-    let Ok((mut gizmo_local_transform, gizmo_transform, mut gizmo)) = gizmo_query.single_mut() else {
+    let Ok((mut gizmo_local_transform, gizmo_global_transform, mut gizmo)) =
+        gizmo_query.single_mut()
+    else {
         let len = gizmo_query.iter().len();
         warn!("error gizmo_query.single_mut() len: {}", len);
+        return;
+    };
+    let Some(initial_global_transform) = gizmo.initial_transform else {
+        warn!("no gizmo.initial_transform");
         return;
     };
 
@@ -126,43 +216,23 @@ pub fn drag_axis(
         warn!("error creating ray");
         return;
     };
+    //info!("picking_ray {:?}", picking_ray);
 
-    let Ok(interaction) = query.get(drag.entity) else {
-        warn!("what? no interaction!");
+    let Some(gizmo_origin) = gizmo.drag_start else {
+        warn!("no gizmo.drag_start");
         return;
     };
 
-    let gizmo_origin = match gizmo.origin_drag_start {
-        Some(origin) => origin,
-        None => {
-            let origin = gizmo_transform.translation();
-            gizmo.origin_drag_start = Some(origin);
-            origin
-        }
+    let Some(interaction) = gizmo.current_interaction else {
+        warn!("no gizmo.current_interaction");
+        return;
     };
-
-    let selected_iter = transform_query
-        .iter_mut()
-        .filter(|(s, ..)| s.is_selected)
-        .map(|(_, parent, local_transform, initial_global_transform)| {
-            let parent_global_transform = match parent {
-                Some(parent) => match parent_query.get(parent.parent()) {
-                    Ok(transform) => *transform,
-                    Err(_) => GlobalTransform::IDENTITY,
-                },
-                None => GlobalTransform::IDENTITY,
-            };
-            let parent_mat = parent_global_transform.to_matrix();
-            let inverse_parent = parent_mat.inverse();
-            (inverse_parent, local_transform, initial_global_transform)
-        });
 
     let TransformGizmoInteraction::TranslateAxis { original: _, axis } = interaction else {
         warn!("what? interaction is not a TranslateAxis!");
         return;
     };
-    let vertical_vector = picking_ray.direction.cross(*axis).normalize();
-
+    let vertical_vector = picking_ray.direction.cross(axis).normalize();
     let plane_normal = axis.cross(vertical_vector).normalize();
     let plane_origin = gizmo_origin;
     let Some(cursor_plane_intersection) = intersect_plane(picking_ray, plane_normal, plane_origin)
@@ -171,33 +241,154 @@ pub fn drag_axis(
         return;
     };
     let cursor_vector: Vec3 = cursor_plane_intersection - plane_origin;
-    let cursor_projected_onto_handle = match &gizmo.drag_start {
-        Some(drag_start) => *drag_start,
-        None => {
-            let handle_vector = axis;
-            let cursor_projected_onto_handle =
-                cursor_vector.dot(handle_vector.normalize()) * handle_vector.normalize();
-            gizmo.drag_start = Some(cursor_projected_onto_handle + plane_origin);
-            warn!("what? None cursor_projected_onto_handle");
-            return;
-        }
-    };
-    let selected_handle_vec = cursor_projected_onto_handle - plane_origin;
+    let selected_handle_vec = gizmo_origin - plane_origin;
     let new_handle_vec =
         cursor_vector.dot(selected_handle_vec.normalize()) * selected_handle_vec.normalize();
     let translation = new_handle_vec - selected_handle_vec;
-    selected_iter.for_each(
-        |(inverse_parent, mut local_transform, initial_global_transform)| {
-            let new_transform = Transform {
-                translation: initial_global_transform.transform.translation + translation,
-                rotation: initial_global_transform.transform.rotation,
-                scale: initial_global_transform.transform.scale,
-            };
-            let local = inverse_parent * new_transform.to_matrix();
-            local_transform.set_if_neq(Transform::from_matrix(local));
-            *gizmo_local_transform = Transform::from_matrix(local);
-        },
-    );
+
+    *debug_vectors = DebugVectors {
+        vertical_vector,
+        plane_normal,
+        plane_origin,
+        cursor_plane_intersection,
+        cursor_vector,
+        selected_handle_vec,
+        new_handle_vec,
+        translation,
+    };
+
+    let mut alter = *gizmo_local_transform;
+    alter.translation.x += 0.01;
+    *gizmo_local_transform = alter;
+    //gizmo_local_transform.translation = translation;
+}
+
+#[derive(Resource, Default)]
+pub struct DebugVectors {
+    vertical_vector: Vec3,
+    plane_normal: Vec3,
+    plane_origin: Vec3,
+    cursor_plane_intersection: Vec3,
+    cursor_vector: Vec3,
+    selected_handle_vec: Vec3,
+    new_handle_vec: Vec3,
+    translation: Vec3,
+}
+
+#[derive(Component)]
+pub enum WhichDebugVector {
+    VerticalVector,
+    PlaneNormal,
+    PlaneOrigin,
+    CursorPlaneIntersection,
+    CursorVector,
+    SelectedHandleVec,
+    NewHandleVec,
+    Translation,
+}
+
+fn debug_some_vectors(mut contexts: EguiContexts, vectors: Res<DebugVectors>) {
+    let ctx = contexts.ctx_mut().unwrap();
+    egui::Window::new("DebugVectors").show(ctx, |ui| {
+        ui.label(format!("vertical_vector...{}", vectors.vertical_vector));
+        ui.label(format!("plane_normal......{}", vectors.plane_normal));
+        ui.label(format!("plane_origin......{}", vectors.plane_origin));
+        ui.label(format!(
+            "cursor_plane_inte.{}",
+            vectors.cursor_plane_intersection
+        ));
+        ui.label(format!("cursor_vector.....{}", vectors.cursor_vector));
+        ui.label(format!("selected_handle_v.{}", vectors.selected_handle_vec));
+        ui.label(format!("new_handle_vec....{}", vectors.new_handle_vec));
+        ui.label(format!("translation.......{}", vectors.translation));
+    });
+}
+
+fn setup_vectors(
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+) {
+    let axis_length = 1.3;
+    let arc_radius = 1.;
+    let plane_size = axis_length * 0.25;
+    let plane_offset = plane_size / 2. + axis_length * 0.2;
+    let arrow_tail_mesh = meshes.add(Capsule3d {
+        radius: 0.04,
+        half_length: axis_length * 0.5f32,
+    });
+    let cone_mesh = meshes.add(cone::Cone {
+        height: 0.25,
+        radius: 0.10,
+        ..Default::default()
+    });
+
+    commands
+        .spawn((
+            WhichDebugVector::VerticalVector,
+            Transform::default(),
+            Visibility::Visible,
+        ))
+        .with_children(|parent| {
+            parent.spawn((
+                Mesh3d(arrow_tail_mesh.clone()),
+                MeshMaterial3d(materials.add(StandardMaterial {
+                    base_color: Color::srgba(0.3, 0.7, 0.3, 1.0),
+                    ..default()
+                })),
+                Transform::from_matrix(Mat4::from_rotation_translation(
+                    Quat::from_rotation_z(std::f32::consts::PI / 2.0),
+                    Vec3::new(axis_length / 2.0, 0.0, 0.0),
+                )),
+            ));
+            parent.spawn((
+                Mesh3d(cone_mesh.clone()),
+                MeshMaterial3d(materials.add(StandardMaterial {
+                    base_color: Color::srgba(0.3, 0.7, 0.3, 1.0),
+                    ..default()
+                })),
+                Transform::from_matrix(Mat4::from_rotation_translation(
+                    Quat::from_rotation_z(std::f32::consts::PI / -2.0),
+                    Vec3::new(axis_length, 0.0, 0.0),
+                )),
+            ));
+        });
+}
+
+fn update_vectors(vectors: Res<DebugVectors>, query: Query<(&WhichDebugVector, &mut Transform)>) {
+    for (vector, mut transform) in query {
+        match vector {
+            WhichDebugVector::VerticalVector => {
+                *transform = Transform::from_translation(transform.translation).looking_at(vectors.vertical_vector, Dir3::Y);
+            }
+            WhichDebugVector::PlaneNormal => todo!(),
+            WhichDebugVector::PlaneOrigin => todo!(),
+            WhichDebugVector::CursorPlaneIntersection => todo!(),
+            WhichDebugVector::CursorVector => todo!(),
+            WhichDebugVector::SelectedHandleVec => todo!(),
+            WhichDebugVector::NewHandleVec => todo!(),
+            WhichDebugVector::Translation => todo!(),
+        }
+    }
+}
+
+pub fn drag_axis_end(
+    drag: On<Pointer<DragEnd>>,
+    mut commands: Commands,
+    transform_query: Query<
+        (
+            Entity,
+            &TransformGizmoInteraction,
+            Option<&ChildOf>,
+            &mut Transform,
+            &InitialTransform,
+        ),
+        Without<TransformGizmo>,
+    >,
+) {
+    for (entity, _interaction, _child_of, _transform, _initial_transform) in transform_query {
+        commands.entity(entity).remove::<InitialTransform>();
+    }
 }
 
 pub fn click_rotate(drag: On<Pointer<DragStart>>) {

@@ -42,7 +42,7 @@ fn setup(
             MeshMaterial3d(materials.add(StandardMaterial::from(red))),
             Transform::from_xyz(-1.0, 0.0, 0.0),
             PickSelection { is_selected: false },
-            //Visibility::Hidden,
+            Visibility::Hidden,
         ))
         .observe(cube_click)
         .with_children(|commands| {

@@ -1,11 +1,11 @@
 use crate::{
-    gizmo::{TransformGizmo, TransformGizmoInteraction, click_axis, click_plane, click_rotate, drag_axis, drag_plane, drag_rotate},
+    gizmo::{TransformGizmo, TransformGizmoInteraction, click_axis, click_plane, click_rotate, drag_axis, drag_axis_end, drag_plane, drag_rotate},
     gizmo_material::GizmoMaterial,
 };
 use bevy::{light::NotShadowCaster, prelude::*};
 
-mod cone;
-mod truncated_torus;
+pub mod cone;
+pub mod truncated_torus;
 
 /// Startup system that builds the procedural mesh and materials of the gizmo.
 pub fn spawn_gizmo(
@@ -68,6 +68,7 @@ pub fn spawn_gizmo(
                     //RenderLayers::layer(12),
                 ))
                 .observe(click_axis)
+                .observe(drag_axis_end)
                 .observe(drag_axis);
             parent
                 .spawn((
@@ -85,6 +86,7 @@ pub fn spawn_gizmo(
                     //RenderLayers::layer(12),
                 ))
                 .observe(click_axis)
+                .observe(drag_axis_end)
                 .observe(drag_axis);
             parent
                 .spawn((
@@ -102,6 +104,7 @@ pub fn spawn_gizmo(
                     //RenderLayers::layer(12),
                 ))
                 .observe(click_axis)
+                .observe(drag_axis_end)
                 .observe(drag_axis);
 
             // Translation Handles
@@ -121,6 +124,7 @@ pub fn spawn_gizmo(
                     //RenderLayers::layer(12),
                 ))
                 .observe(click_axis)
+                .observe(drag_axis_end)
                 .observe(drag_axis);
             parent
                 .spawn((
@@ -153,6 +157,7 @@ pub fn spawn_gizmo(
                     //RenderLayers::layer(12),
                 ))
                 .observe(click_axis)
+                .observe(drag_axis_end)
                 .observe(drag_axis);
             parent
                 .spawn((
@@ -185,6 +190,7 @@ pub fn spawn_gizmo(
                     //RenderLayers::layer(12),
                 ))
                 .observe(click_axis)
+                .observe(drag_axis_end)
                 .observe(drag_axis);
             parent
                 .spawn((
