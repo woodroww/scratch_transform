@@ -1,7 +1,7 @@
-use bevy::{picking::backend::PointerHits, prelude::*, window::PrimaryWindow};
+use bevy::{color::palettes::css::{PURPLE, TEAL, YELLOW}, picking::backend::PointerHits, prelude::*, window::PrimaryWindow};
 use bevy_inspector_egui::{
     bevy_egui::{EguiContexts, EguiPrimaryContextPass},
-    egui,
+    egui::{self, Color32, RichText},
 };
 
 use crate::{gizmo_material::GizmoMaterial, mesh::cone};
@@ -278,6 +278,61 @@ pub struct DebugVectors {
     translation: Vec3,
 }
 
+impl DebugVectors {
+    fn value(self, which: WhichDebugVector) -> Vec3 {
+        match which {
+            WhichDebugVector::VerticalVector => self.vertical_vector,
+            WhichDebugVector::PlaneNormal => self.plane_normal,
+            WhichDebugVector::PlaneOrigin => self.plane_origin,
+            WhichDebugVector::CursorPlaneIntersection => self.cursor_plane_intersection,
+            WhichDebugVector::CursorVector => self.cursor_vector,
+            WhichDebugVector::SelectedHandleVector => self.selected_handle_vec,
+            WhichDebugVector::NewHandleVector => self.new_handle_vec,
+            WhichDebugVector::Translation => self.translation,
+        }
+    }
+}
+
+impl WhichDebugVector {
+    pub fn egui_color(&self) -> Color32 {
+        let color = self.color().to_srgba();
+        Color32::from_rgba_unmultiplied(
+            (color.red * 255.0) as u8,
+            (color.blue * 255.0) as u8,
+            (color.green * 255.0) as u8,
+            (color.alpha * 255.0) as u8,
+        )
+    }
+    fn color(&self) -> Color {
+        match self {
+            WhichDebugVector::VerticalVector => {
+                Color::srgba(0.3, 0.7, 0.3, 1.0)
+            }
+            WhichDebugVector::PlaneNormal => {
+                Color::srgba(0.3, 0.3, 0.7, 1.0)
+            }
+            WhichDebugVector::PlaneOrigin => {
+                Color::srgba(222.0/255.0, 190.0/255.0, 122.0/255.0, 1.0)
+            }
+            WhichDebugVector::CursorPlaneIntersection => {
+                Color::srgba(0.7, 0.3, 0.3, 1.0)
+            }
+            WhichDebugVector::CursorVector => {
+                Color::srgb_u8(190, 135, 94)
+            }
+            WhichDebugVector::SelectedHandleVector => {
+                PURPLE.into()
+            }
+            WhichDebugVector::NewHandleVector => {
+                TEAL.into()
+            }
+            WhichDebugVector::Translation => {
+                YELLOW.into()
+            }
+        }
+    }
+}
+
 #[derive(Component)]
 pub enum WhichDebugVector {
     VerticalVector,
@@ -285,8 +340,8 @@ pub enum WhichDebugVector {
     PlaneOrigin,
     CursorPlaneIntersection,
     CursorVector,
-    SelectedHandleVec,
-    NewHandleVec,
+    SelectedHandleVector,
+    NewHandleVector,
     Translation,
 }
 
@@ -302,17 +357,36 @@ fn debug_ui(
         } else {
             ui.label("gizmo.............error");
         }
-        ui.label(format!("vertical_vector...{}", vectors.vertical_vector));
-        ui.label(format!("plane_normal......{}", vectors.plane_normal));
-        ui.label(format!("plane_origin......{}", vectors.plane_origin));
-        ui.label(format!(
-            "cursor_plane_inte.{}",
-            vectors.cursor_plane_intersection
-        ));
-        ui.label(format!("cursor_vector.....{}", vectors.cursor_vector));
-        ui.label(format!("selected_handle_v.{}", vectors.selected_handle_vec));
-        ui.label(format!("new_handle_vec....{}", vectors.new_handle_vec));
-        ui.label(format!("translation.......{}", vectors.translation));
+
+
+        let color = WhichDebugVector::VerticalVector.egui_color();
+        let color_txt = RichText::new(format!("vertical_vector...{}", vectors.vertical_vector)).color(color);
+        ui.label(color_txt);
+
+        let color = WhichDebugVector::PlaneNormal.egui_color();
+        let color_txt = RichText::new(format!("plane_normal......{}", vectors.plane_normal)).color(color);
+        ui.label(color_txt);
+
+        let color = WhichDebugVector::CursorPlaneIntersection.egui_color();
+        let color_txt = RichText::new(format!("cursor_plane_inte.{}", vectors.cursor_plane_intersection)).color(color);
+        ui.label(color_txt);
+
+        let color = WhichDebugVector::CursorVector.egui_color();
+        let color_txt = RichText::new(format!("cursor_vector.....{}", vectors.cursor_vector)).color(color);
+        ui.label(color_txt);
+
+        let color = WhichDebugVector::SelectedHandleVector.egui_color();
+        let color_txt = RichText::new(format!("selected_handle_v.{}", vectors.selected_handle_vec)).color(color);
+        ui.label(color_txt);
+
+        let color = WhichDebugVector::NewHandleVector.egui_color();
+        let color_txt = RichText::new(format!("new_handle_vec....{}", vectors.new_handle_vec)).color(color);
+        ui.label(color_txt);
+
+        let color = WhichDebugVector::Translation.egui_color();
+        let color_txt = RichText::new(format!("translation.......{}", vectors.translation)).color(color);
+        ui.label(color_txt);
+
     });
 }
 
@@ -345,30 +419,170 @@ fn setup_debug_vectors(
             parent.spawn((
                 Mesh3d(arrow_tail_mesh.clone()),
                 MeshMaterial3d(materials.add(StandardMaterial {
-                    base_color: Color::srgba(0.3, 0.7, 0.3, 1.0),
+                    base_color: WhichDebugVector::VerticalVector.color(),
                     ..default()
                 })),
                 Transform::from_translation(Vec3::new(0.0, axis_length / 2.0, 0.0)),
-                /*
-                Transform::from_matrix(Mat4::from_rotation_translation(
-                    Quat::from_rotation_z(std::f32::consts::PI / 2.0),
-                    Vec3::new(axis_length / 2.0, 0.0, 0.0),
-                )),
-*/
             ));
             parent.spawn((
                 Mesh3d(cone_mesh.clone()),
                 MeshMaterial3d(materials.add(StandardMaterial {
-                    base_color: Color::srgba(0.3, 0.7, 0.3, 1.0),
+                    base_color: WhichDebugVector::VerticalVector.color(),
                     ..default()
                 })),
-                Transform::from_matrix(Mat4::from_rotation_translation(
-                    Quat::from_rotation_z(std::f32::consts::PI / -2.0),
-                    Vec3::new(axis_length, 0.0, 0.0),
-                )),
+                Transform::from_translation(Vec3::new(0.0, axis_length, 0.0)),
+            ));
+        });
+
+    commands
+        .spawn((
+            WhichDebugVector::PlaneNormal,
+            Transform::default(),
+            Visibility::Visible,
+        ))
+        .with_children(|parent| {
+            parent.spawn((
+                Mesh3d(arrow_tail_mesh.clone()),
+                MeshMaterial3d(materials.add(StandardMaterial {
+                    base_color: WhichDebugVector::PlaneNormal.color(),
+                    ..default()
+                })),
+                Transform::from_translation(Vec3::new(0.0, axis_length / 2.0, 0.0)),
+            ));
+            parent.spawn((
+                Mesh3d(cone_mesh.clone()),
+                MeshMaterial3d(materials.add(StandardMaterial {
+                    base_color: WhichDebugVector::PlaneNormal.color(),
+                    ..default()
+                })),
+                Transform::from_translation(Vec3::new(0.0, axis_length, 0.0)),
+            ));
+        });
+
+    commands
+        .spawn((
+            WhichDebugVector::PlaneOrigin,
+            Transform::default(),
+            Visibility::Visible,
+        ))
+        .with_children(|parent| {
+            parent.spawn((
+                Mesh3d(meshes.add(Sphere::new(0.05))),
+                MeshMaterial3d(materials.add(StandardMaterial {
+                    base_color: WhichDebugVector::PlaneOrigin.color(),
+                    ..default()
+                })),
+            ));
+        });
+
+    commands
+        .spawn((
+            WhichDebugVector::CursorPlaneIntersection,
+            Transform::default(),
+            Visibility::Visible,
+        ))
+        .with_children(|parent| {
+            parent.spawn((
+                Mesh3d(meshes.add(Sphere::new(0.05))),
+                MeshMaterial3d(materials.add(StandardMaterial {
+                    base_color: WhichDebugVector::CursorPlaneIntersection.color(),
+                    ..default()
+                })),
+            ));
+        });
+
+    commands
+        .spawn((
+            WhichDebugVector::CursorVector,
+            Transform::default(),
+            Visibility::Visible,
+        ))
+        .with_children(|parent| {
+            parent.spawn((
+                Mesh3d(arrow_tail_mesh.clone()),
+                MeshMaterial3d(materials.add(StandardMaterial {
+                    base_color: WhichDebugVector::CursorVector.color(),
+                    ..default()
+                })),
+                Transform::from_translation(Vec3::new(0.0, axis_length / 2.0, 0.0)),
+            ));
+            parent.spawn((
+                Mesh3d(cone_mesh.clone()),
+                MeshMaterial3d(materials.add(StandardMaterial {
+                    base_color: WhichDebugVector::CursorVector.color(),
+                    ..default()
+                })),
+                Transform::from_translation(Vec3::new(0.0, axis_length, 0.0)),
+            ));
+        });
+
+    commands
+        .spawn((
+            WhichDebugVector::SelectedHandleVector,
+            Transform::default(),
+            Visibility::Visible,
+        ))
+        .with_children(|parent| {
+            parent.spawn((
+                Mesh3d(arrow_tail_mesh.clone()),
+                MeshMaterial3d(materials.add(StandardMaterial {
+                    base_color: WhichDebugVector::SelectedHandleVector.color(),
+                    ..default()
+                })),
+                Transform::from_translation(Vec3::new(0.0, axis_length / 2.0, 0.0)),
+            ));
+            parent.spawn((
+                Mesh3d(cone_mesh.clone()),
+                MeshMaterial3d(materials.add(StandardMaterial {
+                    base_color: WhichDebugVector::SelectedHandleVector.color(),
+                    ..default()
+                })),
+                Transform::from_translation(Vec3::new(0.0, axis_length, 0.0)),
+            ));
+        });
+
+    commands
+        .spawn((
+            WhichDebugVector::NewHandleVector,
+            Transform::default(),
+            Visibility::Visible,
+        ))
+        .with_children(|parent| {
+            parent.spawn((
+                Mesh3d(arrow_tail_mesh.clone()),
+                MeshMaterial3d(materials.add(StandardMaterial {
+                    base_color: WhichDebugVector::NewHandleVector.color(),
+                    ..default()
+                })),
+                Transform::from_translation(Vec3::new(0.0, axis_length / 2.0, 0.0)),
+            ));
+            parent.spawn((
+                Mesh3d(cone_mesh.clone()),
+                MeshMaterial3d(materials.add(StandardMaterial {
+                    base_color: WhichDebugVector::NewHandleVector.color(),
+                    ..default()
+                })),
+                Transform::from_translation(Vec3::new(0.0, axis_length, 0.0)),
+            ));
+        });
+
+    commands
+        .spawn((
+            WhichDebugVector::Translation,
+            Transform::default(),
+            Visibility::Visible,
+        ))
+        .with_children(|parent| {
+            parent.spawn((
+                Mesh3d(meshes.add(Sphere::new(0.05))),
+                MeshMaterial3d(materials.add(StandardMaterial {
+                    base_color: WhichDebugVector::Translation.color(),
+                    ..default()
+                })),
             ));
         });
 }
+
 
 fn update_debug_vectors(
     vectors: Res<DebugVectors>,
@@ -380,13 +594,32 @@ fn update_debug_vectors(
                 let local_forward = Vec3::Y;
                 transform.rotation = Quat::from_rotation_arc(local_forward, vectors.vertical_vector);
             }
-            WhichDebugVector::PlaneNormal => todo!(),
-            WhichDebugVector::PlaneOrigin => todo!(),
-            WhichDebugVector::CursorPlaneIntersection => todo!(),
-            WhichDebugVector::CursorVector => todo!(),
-            WhichDebugVector::SelectedHandleVec => todo!(),
-            WhichDebugVector::NewHandleVec => todo!(),
-            WhichDebugVector::Translation => todo!(),
+            WhichDebugVector::PlaneNormal => {
+                let local_forward = Vec3::Y;
+                transform.rotation = Quat::from_rotation_arc(local_forward, vectors.plane_normal);
+            }
+            WhichDebugVector::PlaneOrigin => {
+                transform.translation = vectors.plane_origin;
+            }
+            WhichDebugVector::CursorPlaneIntersection => {
+                transform.translation = vectors.cursor_plane_intersection;
+            }
+            WhichDebugVector::CursorVector => {
+                let local_forward = Vec3::Y;
+                transform.rotation = Quat::from_rotation_arc(local_forward, vectors.cursor_vector);
+            }
+            WhichDebugVector::SelectedHandleVector => {
+                let local_forward = Vec3::Y;
+                transform.rotation = Quat::from_rotation_arc(local_forward, vectors.selected_handle_vec);
+            },
+            WhichDebugVector::NewHandleVector => {
+                let local_forward = Vec3::Y;
+                transform.rotation = Quat::from_rotation_arc(local_forward, vectors.new_handle_vec);
+            }
+            WhichDebugVector::Translation => {
+                let local_forward = Vec3::Y;
+                transform.rotation = Quat::from_rotation_arc(local_forward, vectors.translation);
+            }
         }
     }
 }
