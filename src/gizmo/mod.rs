@@ -71,10 +71,13 @@ pub struct TransformGizmoPlugin;
 
 impl Plugin for TransformGizmoPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Startup, (crate::mesh::spawn_gizmo, setup_vectors))
+        app.add_systems(Startup, (crate::mesh::spawn_gizmo, setup_debug_vectors))
             .insert_resource(DebugVectors::default())
-            .add_systems(EguiPrimaryContextPass, debug_some_vectors)
-            .add_systems(Update, update_vectors.run_if(resource_changed::<DebugVectors>))
+            .add_systems(EguiPrimaryContextPass, debug_ui)
+            .add_systems(
+                Update,
+                update_debug_vectors.run_if(resource_changed::<DebugVectors>),
+            )
             .add_plugins(MaterialPlugin::<GizmoMaterial>::default())
             .add_observer(on_component_added);
     }
@@ -287,9 +290,18 @@ pub enum WhichDebugVector {
     Translation,
 }
 
-fn debug_some_vectors(mut contexts: EguiContexts, vectors: Res<DebugVectors>) {
+fn debug_ui(
+    mut contexts: EguiContexts,
+    vectors: Res<DebugVectors>,
+    gizmo_query: Query<&Transform, With<TransformGizmo>>,
+) {
     let ctx = contexts.ctx_mut().unwrap();
     egui::Window::new("DebugVectors").show(ctx, |ui| {
+        if let Ok(gizmo_transform) = gizmo_query.single() {
+            ui.label(format!("gizmo.............{}", gizmo_transform.translation));
+        } else {
+            ui.label("gizmo.............error");
+        }
         ui.label(format!("vertical_vector...{}", vectors.vertical_vector));
         ui.label(format!("plane_normal......{}", vectors.plane_normal));
         ui.label(format!("plane_origin......{}", vectors.plane_origin));
@@ -304,7 +316,7 @@ fn debug_some_vectors(mut contexts: EguiContexts, vectors: Res<DebugVectors>) {
     });
 }
 
-fn setup_vectors(
+fn setup_debug_vectors(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
@@ -336,10 +348,13 @@ fn setup_vectors(
                     base_color: Color::srgba(0.3, 0.7, 0.3, 1.0),
                     ..default()
                 })),
+                Transform::from_translation(Vec3::new(0.0, axis_length / 2.0, 0.0)),
+                /*
                 Transform::from_matrix(Mat4::from_rotation_translation(
                     Quat::from_rotation_z(std::f32::consts::PI / 2.0),
                     Vec3::new(axis_length / 2.0, 0.0, 0.0),
                 )),
+*/
             ));
             parent.spawn((
                 Mesh3d(cone_mesh.clone()),
@@ -355,11 +370,15 @@ fn setup_vectors(
         });
 }
 
-fn update_vectors(vectors: Res<DebugVectors>, query: Query<(&WhichDebugVector, &mut Transform)>) {
+fn update_debug_vectors(
+    vectors: Res<DebugVectors>,
+    query: Query<(&WhichDebugVector, &mut Transform)>,
+) {
     for (vector, mut transform) in query {
         match vector {
             WhichDebugVector::VerticalVector => {
-                *transform = Transform::from_translation(transform.translation).looking_at(vectors.vertical_vector, Dir3::Y);
+                let local_forward = Vec3::Y;
+                transform.rotation = Quat::from_rotation_arc(local_forward, vectors.vertical_vector);
             }
             WhichDebugVector::PlaneNormal => todo!(),
             WhichDebugVector::PlaneOrigin => todo!(),

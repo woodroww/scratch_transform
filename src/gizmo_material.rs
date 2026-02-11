@@ -9,6 +9,8 @@ use bevy::{
     shader::ShaderRef,
 };
 
+// https://docs.rs/bevy/latest/bevy/pbr/trait.Material.html
+
 #[derive(Asset, TypePath, AsBindGroup, Debug, Clone)]
 pub struct GizmoMaterial {
     #[uniform(0)]

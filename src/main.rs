@@ -2,7 +2,7 @@ use bevy::prelude::*;
 use bevy_inspector_egui::bevy_egui::EguiPlugin;
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
 use bevy_panorbit_camera::{PanOrbitCamera, PanOrbitCameraPlugin};
-use scratch_transform::gizmo::{GizmoPickSource, PickSelection, TransformGizmoPlugin};
+use scratch_transform::{axis::AxisPlugin, gizmo::{GizmoPickSource, PickSelection, TransformGizmoPlugin}};
 
 fn main() {
     App::new()
@@ -13,6 +13,7 @@ fn main() {
             EguiPlugin::default(),
             WorldInspectorPlugin::default(),
             PanOrbitCameraPlugin,
+            AxisPlugin,
         ))
         .add_systems(Startup, setup)
         .run();
@@ -25,12 +26,14 @@ fn setup(
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
     // plane
+    /*
     commands.spawn((
         Mesh3d(meshes.add(Plane3d::default())),
         MeshMaterial3d(materials.add(Color::srgb(0.3, 0.5, 0.3))),
         Transform::from_translation(Vec3::new(0.0, -0.5, 0.0)).with_scale(Vec3::splat(5.0)),
         PickSelection { is_selected: false },
     ));
+*/
 
     let tan = Color::srgb_u8(204, 178, 153);
     let red = Color::srgb_u8(127, 26, 26);
