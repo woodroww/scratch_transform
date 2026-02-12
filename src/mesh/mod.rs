@@ -142,8 +142,11 @@ pub fn spawn_gizmo(
                     NotShadowCaster,
                     //RenderLayers::layer(12),
                 ))
-                .observe(click_plane)
-                .observe(drag_plane);
+                .observe(click_axis)
+                .observe(drag_axis_end)
+                .observe(drag_axis);
+                //.observe(click_plane)
+                //.observe(drag_plane);
             parent
                 .spawn((
                     Mesh3d(cone_mesh.clone()),
@@ -172,8 +175,11 @@ pub fn spawn_gizmo(
                     NotShadowCaster,
                     //RenderLayers::layer(12),
                 ))
-                .observe(click_plane)
-                .observe(drag_plane);
+                .observe(click_axis)
+                .observe(drag_axis_end)
+                .observe(drag_axis);
+                //.observe(click_plane)
+                //.observe(drag_plane);
             parent
                 .spawn((
                     Mesh3d(cone_mesh.clone()),
@@ -208,9 +214,13 @@ pub fn spawn_gizmo(
                     NotShadowCaster,
                     //RenderLayers::layer(12),
                 ))
-                .observe(click_plane)
-                .observe(drag_plane);
+                //.observe(click_plane)
+                //.observe(drag_plane);
+                .observe(click_axis)
+                .observe(drag_axis_end)
+                .observe(drag_axis);
 
+            // screen space drag sphere
             parent
                 .spawn((
                     Mesh3d(sphere_mesh.clone()),
@@ -222,8 +232,11 @@ pub fn spawn_gizmo(
                     NotShadowCaster,
                     //RenderLayers::layer(12),
                 ))
-                .observe(click_plane)
-                .observe(drag_plane);
+                //.observe(click_plane)
+                //.observe(drag_plane);
+                .observe(click_axis)
+                .observe(drag_axis_end)
+                .observe(drag_axis);
 
             // Rotation Arcs
             parent
@@ -238,8 +251,11 @@ pub fn spawn_gizmo(
                     NotShadowCaster,
                     //RenderLayers::layer(12),
                 ))
-                .observe(click_rotate)
-                .observe(drag_rotate);
+                //.observe(click_rotate)
+                //.observe(drag_rotate);
+                .observe(click_axis)
+                .observe(drag_axis_end)
+                .observe(drag_axis);
             parent
                 .spawn((
                     Mesh3d(rotation_mesh.clone()),
@@ -251,8 +267,11 @@ pub fn spawn_gizmo(
                     NotShadowCaster,
                     //RenderLayers::layer(12),
                 ))
-                .observe(click_rotate)
-                .observe(drag_rotate);
+                //.observe(click_rotate)
+                //.observe(drag_rotate);
+                .observe(click_axis)
+                .observe(drag_axis_end)
+                .observe(drag_axis);
             parent
                 .spawn((
                     Mesh3d(rotation_mesh.clone()),
@@ -268,7 +287,10 @@ pub fn spawn_gizmo(
                     NotShadowCaster,
                     //RenderLayers::layer(12),
                 ))
-                .observe(click_rotate)
-                .observe(drag_rotate);
+                //.observe(click_rotate)
+                //.observe(drag_rotate);
+                .observe(click_axis)
+                .observe(drag_axis_end)
+                .observe(drag_axis);
         });
 }

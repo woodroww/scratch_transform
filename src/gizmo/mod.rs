@@ -1,4 +1,12 @@
-use bevy::{color::palettes::{basic::AQUA, css::{FUCHSIA, GREEN, LIME, PURPLE, RED, TEAL, YELLOW}}, picking::backend::PointerHits, prelude::*, window::PrimaryWindow};
+use bevy::{
+    color::palettes::{
+        basic::AQUA,
+        css::{FUCHSIA, GREEN, LIME, PURPLE, RED, TEAL, YELLOW},
+    },
+    picking::backend::PointerHits,
+    prelude::*,
+    window::PrimaryWindow,
+};
 use bevy_inspector_egui::{
     bevy_egui::{EguiContexts, EguiPrimaryContextPass},
     egui::{self, Color32, RichText},
@@ -37,6 +45,7 @@ pub struct TransformGizmo {
     drag_start: Option<Vec3>,
     // Initial transform of the gizmo
     initial_transform: Option<Transform>,
+    alignment_rotation: Quat,
 }
 
 pub fn ray_from_screenspace(
@@ -189,17 +198,12 @@ pub fn drag_axis(
     mut gizmo_query: Query<(&mut Transform, &GlobalTransform, &mut TransformGizmo)>,
     mut debug_vectors: ResMut<DebugVectors>,
     transform_query: Query<
-        (
-            &PickSelection,
-            Option<&ChildOf>,
-            &mut Transform,
-        ),
+        (&PickSelection, Option<&ChildOf>, &mut Transform),
         Without<TransformGizmo>,
     >,
     parent_query: Query<&GlobalTransform>,
 ) {
-    let Ok((mut gizmo_local_transform, _gizmo_global_transform, gizmo)) =
-        gizmo_query.single_mut()
+    let Ok((mut gizmo_local_transform, _gizmo_global_transform, gizmo)) = gizmo_query.single_mut()
     else {
         let len = gizmo_query.iter().len();
         warn!("error gizmo_query.single_mut() len: {}", len);
@@ -209,6 +213,7 @@ pub fn drag_axis(
         warn!("no gizmo.initial_transform");
         return;
     };
+    let rotation_offset = gizmo.alignment_rotation;
 
     let Ok(window) = windows.single() else {
         warn!("no window");
@@ -227,7 +232,7 @@ pub fn drag_axis(
         return;
     };
 
-    let Some(gizmo_origin) = gizmo.drag_start else {
+    let Some(drag_start) = gizmo.drag_start else {
         warn!("no gizmo.drag_start");
         return;
     };
@@ -237,33 +242,79 @@ pub fn drag_axis(
         return;
     };
 
-    let TransformGizmoInteraction::TranslateAxis { original: _, axis } = interaction else {
-        warn!("what? interaction is not a TranslateAxis!");
-        return;
-    };
-    let vertical_vector = picking_ray.direction.cross(axis).normalize();
-    let plane_normal = axis.cross(vertical_vector).normalize();
-    let plane_origin = gizmo_origin;
-    let Some(cursor_plane_intersection) = intersect_plane(picking_ray, plane_normal, plane_origin)
-    else {
-        warn!("what? None cursor_plane_intersection");
-        return;
-    };
-    let cursor_vector: Vec3 = cursor_plane_intersection - plane_origin;
+    match interaction {
+        TransformGizmoInteraction::TranslateAxis { original: _, axis } => {
+            let vertical_vector = picking_ray.direction.cross(axis).normalize();
+            let plane_normal = axis.cross(vertical_vector).normalize();
+            let plane_origin = drag_start;
+            let Some(cursor_plane_intersection) =
+                intersect_plane(picking_ray, plane_normal, plane_origin)
+            else {
+                warn!("what? None cursor_plane_intersection");
+                return;
+            };
+            let cursor_vector: Vec3 = cursor_plane_intersection - plane_origin;
+            // initial click PlaneOrigin vectors.plane_origin
+            // drag location CursorPlaneIntersection  vectors.cursor_plane_intersection
+            let new_translation = initial_transform.translation + cursor_vector * axis;
 
-    // initial click PlaneOrigin vectors.plane_origin
-    // drag location CursorPlaneIntersection  vectors.cursor_plane_intersection
-    let new_translation = initial_transform.translation + cursor_vector * axis;
+            *debug_vectors = DebugVectors {
+                vertical_vector,
+                plane_normal,
+                plane_origin,
+                cursor_plane_intersection,
+                cursor_vector,
+            };
 
-    *debug_vectors = DebugVectors {
-        vertical_vector,
-        plane_normal,
-        plane_origin,
-        cursor_plane_intersection,
-        cursor_vector,
-    };
+            gizmo_local_transform.translation = new_translation;
+        }
+        TransformGizmoInteraction::TranslatePlane {
+            original: _,
+            normal,
+        } => {
+            let plane_origin = drag_start;
+            let Some(cursor_plane_intersection) =
+                intersect_plane(picking_ray, normal, plane_origin)
+            else {
+                warn!("what? None cursor_plane_intersection");
+                return;
+            };
 
-    gizmo_local_transform.translation = new_translation;
+            let new_transform = Transform {
+                translation: initial_transform.translation + cursor_plane_intersection - drag_start,
+                rotation: initial_transform.rotation,
+                scale: initial_transform.scale,
+            };
+
+            *gizmo_local_transform = new_transform;
+        }
+        TransformGizmoInteraction::RotateAxis { original: _, axis } => {
+            let Some(cursor_plane_intersection) =
+                intersect_plane(picking_ray, axis.normalize(), drag_start)
+            else {
+                return;
+            };
+            let cursor_vector = (cursor_plane_intersection - drag_start).normalize();
+            let dot = drag_start.dot(cursor_vector);
+            let det = axis.dot(drag_start.cross(cursor_vector));
+            let angle = det.atan2(dot);
+            let rotation = Quat::from_axis_angle(axis, angle);
+
+            let world_space_offset =
+                initial_transform.rotation * rotation_offset;
+            let offset_rotated = rotation * world_space_offset;
+            let offset = world_space_offset - offset_rotated;
+            let new_transform = Transform {
+                translation: initial_transform.translation, //+ offset,
+                rotation: rotation * initial_transform.rotation,
+                scale: initial_transform.scale,
+            };
+            //let local = inverse_parent * new_transform.compute_matrix();
+            let local = new_transform.to_matrix();
+            gizmo_local_transform.set_if_neq(Transform::from_matrix(local));
+        }
+        _ => panic!(),
+    }
 }
 
 #[derive(Resource, Default)]
@@ -332,24 +383,32 @@ fn debug_ui(
         }
         // initial click
         let color = WhichDebugVector::PlaneOrigin.egui_color();
-        let color_txt = RichText::new(format!("plane_origin......{}", vectors.plane_origin)).color(color);
+        let color_txt =
+            RichText::new(format!("plane_origin......{}", vectors.plane_origin)).color(color);
         ui.label(color_txt);
 
         // drag location
         let color = WhichDebugVector::CursorPlaneIntersection.egui_color();
-        let color_txt = RichText::new(format!("cursor_plane_inte.{}", vectors.cursor_plane_intersection)).color(color);
+        let color_txt = RichText::new(format!(
+            "cursor_plane_inte.{}",
+            vectors.cursor_plane_intersection
+        ))
+        .color(color);
         ui.label(color_txt);
 
         let color = WhichDebugVector::VerticalVector.egui_color();
-        let color_txt = RichText::new(format!("vertical_vector...{}", vectors.vertical_vector)).color(color);
+        let color_txt =
+            RichText::new(format!("vertical_vector...{}", vectors.vertical_vector)).color(color);
         ui.label(color_txt);
 
         let color = WhichDebugVector::PlaneNormal.egui_color();
-        let color_txt = RichText::new(format!("plane_normal......{}", vectors.plane_normal)).color(color);
+        let color_txt =
+            RichText::new(format!("plane_normal......{}", vectors.plane_normal)).color(color);
         ui.label(color_txt);
 
         let color = WhichDebugVector::CursorVector.egui_color();
-        let color_txt = RichText::new(format!("cursor_vector.....{}", vectors.cursor_vector)).color(color);
+        let color_txt =
+            RichText::new(format!("cursor_vector.....{}", vectors.cursor_vector)).color(color);
         ui.label(color_txt);
     });
 }
@@ -371,11 +430,7 @@ fn spawn_arrow_vector(
         ..Default::default()
     });
     commands
-        .spawn((
-            vector_type,
-            Transform::default(),
-            Visibility::Visible,
-        ))
+        .spawn((vector_type, Transform::default(), Visibility::Visible))
         .with_children(|parent| {
             parent.spawn((
                 Mesh3d(arrow_tail_mesh.clone()),
@@ -401,9 +456,24 @@ fn setup_debug_vectors(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
-    spawn_arrow_vector(commands.reborrow(), WhichDebugVector::VerticalVector, &mut meshes, &mut materials);
-    spawn_arrow_vector(commands.reborrow(), WhichDebugVector::PlaneNormal, &mut meshes, &mut materials);
-    spawn_arrow_vector(commands.reborrow(), WhichDebugVector::CursorVector, &mut meshes, &mut materials);
+    spawn_arrow_vector(
+        commands.reborrow(),
+        WhichDebugVector::VerticalVector,
+        &mut meshes,
+        &mut materials,
+    );
+    spawn_arrow_vector(
+        commands.reborrow(),
+        WhichDebugVector::PlaneNormal,
+        &mut meshes,
+        &mut materials,
+    );
+    spawn_arrow_vector(
+        commands.reborrow(),
+        WhichDebugVector::CursorVector,
+        &mut meshes,
+        &mut materials,
+    );
 
     commands
         .spawn((
@@ -438,7 +508,6 @@ fn setup_debug_vectors(
         });
 }
 
-
 fn update_debug_vectors(
     vectors: Res<DebugVectors>,
     query: Query<(&WhichDebugVector, &mut Transform)>,
@@ -447,7 +516,8 @@ fn update_debug_vectors(
         match vector {
             WhichDebugVector::VerticalVector => {
                 let local_forward = Vec3::Y;
-                transform.rotation = Quat::from_rotation_arc(local_forward, vectors.vertical_vector);
+                transform.rotation =
+                    Quat::from_rotation_arc(local_forward, vectors.vertical_vector);
             }
             WhichDebugVector::PlaneNormal => {
                 let local_forward = Vec3::Y;
