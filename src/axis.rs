@@ -88,7 +88,7 @@ fn spawn_main_axis(
             Transform::from_translation(y_translation),
         ));
         parent.spawn((
-            Name::from("negative y-axis green"),
+            Name::from("negative y-axis gray"),
             Mesh3d(meshes.add(y)),
             MeshMaterial3d(materials.add(StandardMaterial {
                 base_color: gray,

@@ -1,5 +1,5 @@
 use crate::{
-    gizmo::{TransformGizmo, TransformGizmoInteraction, click_axis, click_plane, click_rotate, drag_axis, drag_axis_end, drag_plane, drag_rotate},
+    gizmo::{TransformGizmo, TransformGizmoInteraction, click_axis, drag_axis, drag_axis_end},
     gizmo_material::GizmoMaterial,
 };
 use bevy::{light::NotShadowCaster, prelude::*};

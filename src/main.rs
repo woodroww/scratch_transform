@@ -1,8 +1,11 @@
-use bevy::prelude::*;
+use bevy::{pbr::wireframe::WireframePlugin, prelude::*};
 use bevy_inspector_egui::bevy_egui::EguiPlugin;
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
 use bevy_panorbit_camera::{PanOrbitCamera, PanOrbitCameraPlugin};
-use scratch_transform::{axis::AxisPlugin, gizmo::{GizmoPickSource, PickSelection, TransformGizmoPlugin}};
+use scratch_transform::{
+    axis::AxisPlugin,
+    gizmo::{GizmoPickSource, PickSelection, TransformGizmoPlugin},
+};
 
 fn main() {
     App::new()
@@ -14,6 +17,7 @@ fn main() {
             WorldInspectorPlugin::default(),
             PanOrbitCameraPlugin,
             AxisPlugin,
+            WireframePlugin::default(),
         ))
         .add_systems(Startup, setup)
         .run();
@@ -27,13 +31,13 @@ fn setup(
 ) {
     // plane
     /*
-    commands.spawn((
-        Mesh3d(meshes.add(Plane3d::default())),
-        MeshMaterial3d(materials.add(Color::srgb(0.3, 0.5, 0.3))),
-        Transform::from_translation(Vec3::new(0.0, -0.5, 0.0)).with_scale(Vec3::splat(5.0)),
-        PickSelection { is_selected: false },
-    ));
-*/
+        commands.spawn((
+            Mesh3d(meshes.add(Plane3d::default())),
+            MeshMaterial3d(materials.add(Color::srgb(0.3, 0.5, 0.3))),
+            Transform::from_translation(Vec3::new(0.0, -0.5, 0.0)).with_scale(Vec3::splat(5.0)),
+            PickSelection { is_selected: false },
+        ));
+    */
 
     let tan = Color::srgb_u8(204, 178, 153);
     let red = Color::srgb_u8(127, 26, 26);
@@ -76,7 +80,7 @@ fn setup(
         Transform::from_xyz(2.0, 2.5, 5.0).looking_at(Vec3::ZERO, Vec3::Y),
         PanOrbitCamera {
             button_orbit: MouseButton::Left,
-            modifier_orbit: Some(KeyCode::Space),
+            modifier_orbit: Some(KeyCode::ControlLeft),
             ..default()
         },
         GizmoPickSource,

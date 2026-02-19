@@ -1,18 +1,13 @@
 use bevy::{
-    color::palettes::{
-        basic::AQUA,
-        css::{FUCHSIA, GREEN, LIME, PURPLE, RED, TEAL, YELLOW},
-    },
-    picking::backend::PointerHits,
-    prelude::*,
-    window::PrimaryWindow,
-};
-use bevy_inspector_egui::{
-    bevy_egui::{EguiContexts, EguiPrimaryContextPass},
-    egui::{self, Color32, RichText},
+    color::palettes::css::ORANGE, picking::backend::PointerHits, prelude::*, window::PrimaryWindow,
 };
 
-use crate::{gizmo_material::GizmoMaterial, mesh::cone};
+use crate::{
+    gizmo::debug_vectors::{DebugVectors, DebugVectorsPlugin},
+    gizmo_material::GizmoMaterial,
+};
+
+pub mod debug_vectors;
 
 #[derive(Component)]
 pub struct GizmoPickSource;
@@ -44,7 +39,8 @@ pub struct TransformGizmo {
     // much total dragging has occurred without accumulating error across frames.
     drag_start: Option<Vec3>,
     // Initial transform of the gizmo
-    initial_transform: Option<Transform>,
+    initial_transform: Transform,
+    initial_global_transform: GlobalTransform,
     alignment_rotation: Quat,
 }
 
@@ -80,23 +76,10 @@ pub struct TransformGizmoPlugin;
 
 impl Plugin for TransformGizmoPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Startup, (crate::mesh::spawn_gizmo, setup_debug_vectors))
-            .insert_resource(DebugVectors::default())
-            .add_systems(EguiPrimaryContextPass, debug_ui)
-            .add_systems(
-                Update,
-                update_debug_vectors.run_if(resource_changed::<DebugVectors>),
-            )
-            .add_plugins(MaterialPlugin::<GizmoMaterial>::default())
-            .add_observer(on_component_added);
+        app.add_systems(Startup, crate::mesh::spawn_gizmo)
+            .add_plugins(DebugVectorsPlugin)
+            .add_plugins(MaterialPlugin::<GizmoMaterial>::default());
     }
-}
-
-fn on_component_added(event: On<Add, TransformGizmo>) {
-    println!(
-        "My marker component was added to entity: {:?}",
-        event.entity
-    );
 }
 
 pub fn debug_print_hits(
@@ -130,7 +113,6 @@ pub fn debug_print_hits(
 
 pub fn click_axis(
     drag: On<Pointer<DragStart>>,
-    mut commands: Commands,
     transform_query: Query<
         (&TransformGizmoInteraction, Option<&ChildOf>, &mut Transform),
         Without<TransformGizmo>,
@@ -181,14 +163,15 @@ pub fn click_axis(
         return;
     };
 
-    let Ok((interaction, child_of, transform)) = transform_query.get(drag.entity) else {
+    let Ok((interaction, _child_of, _transform)) = transform_query.get(drag.entity) else {
         warn!("transform_query couldn't find entity from click");
         return;
     };
 
     transform_gizmo.current_interaction = Some(*interaction);
     transform_gizmo.drag_start = Some(min_data.unwrap().position.unwrap());
-    transform_gizmo.initial_transform = Some(*main_transform);
+    transform_gizmo.initial_transform = *main_transform;
+    transform_gizmo.initial_global_transform = *main_global_transform;
 }
 
 pub fn drag_axis(
@@ -197,11 +180,6 @@ pub fn drag_axis(
     windows: Query<&mut Window, With<PrimaryWindow>>,
     mut gizmo_query: Query<(&mut Transform, &GlobalTransform, &mut TransformGizmo)>,
     mut debug_vectors: ResMut<DebugVectors>,
-    transform_query: Query<
-        (&PickSelection, Option<&ChildOf>, &mut Transform),
-        Without<TransformGizmo>,
-    >,
-    parent_query: Query<&GlobalTransform>,
 ) {
     let Ok((mut gizmo_local_transform, _gizmo_global_transform, gizmo)) = gizmo_query.single_mut()
     else {
@@ -209,11 +187,9 @@ pub fn drag_axis(
         warn!("error gizmo_query.single_mut() len: {}", len);
         return;
     };
-    let Some(initial_transform) = gizmo.initial_transform else {
-        warn!("no gizmo.initial_transform");
-        return;
-    };
-    let rotation_offset = gizmo.alignment_rotation;
+    let initial_transform = gizmo.initial_transform;
+    //let initial_transform = gizmo.initial_global_transform;
+    //let rotation_offset = gizmo.alignment_rotation;
 
     let Ok(window) = windows.single() else {
         warn!("no window");
@@ -254,16 +230,28 @@ pub fn drag_axis(
                 return;
             };
             let cursor_vector: Vec3 = cursor_plane_intersection - plane_origin;
-            // initial click PlaneOrigin vectors.plane_origin
-            // drag location CursorPlaneIntersection  vectors.cursor_plane_intersection
-            let new_translation = initial_transform.translation + cursor_vector * axis;
+            let normalized_translation_axis = (initial_transform.rotation * axis).normalize();
+
+            let plane = InfinitePlane3d::new(normalized_translation_axis);
+            let isometry = Isometry3d::from_translation(plane_origin);
+            // so we needed a signed distance instead of length
+            let what = plane.signed_distance(isometry, cursor_plane_intersection);
+            let jammy = normalized_translation_axis * what;
+            // if cursor_plane_intersection crosses the plane_origin on the translated axis
+            // length sign needs to change
+            //let jammy = normalized_translation_axis * cursor_vector;
+           
+            let new_translation = initial_transform.translation + jammy;
 
             *debug_vectors = DebugVectors {
                 vertical_vector,
                 plane_normal,
+                ray: picking_ray,
                 plane_origin,
                 cursor_plane_intersection,
                 cursor_vector,
+                cross_plane: debug_vectors.cross_plane,
+                cross_plane_normal: normalized_translation_axis,
             };
 
             gizmo_local_transform.translation = new_translation;
@@ -299,246 +287,24 @@ pub fn drag_axis(
             let det = axis.dot(drag_start.cross(cursor_vector));
             let angle = det.atan2(dot);
             let rotation = Quat::from_axis_angle(axis, angle);
-
-            let world_space_offset =
-                initial_transform.rotation * rotation_offset;
-            let offset_rotated = rotation * world_space_offset;
-            let offset = world_space_offset - offset_rotated;
-            let new_transform = Transform {
+            let mut new_transform = Transform {
                 translation: initial_transform.translation, //+ offset,
-                rotation: rotation * initial_transform.rotation,
+                rotation: initial_transform.rotation,
                 scale: initial_transform.scale,
             };
+            new_transform.rotate_local(rotation);
             //let local = inverse_parent * new_transform.compute_matrix();
-            let local = new_transform.to_matrix();
-            gizmo_local_transform.set_if_neq(Transform::from_matrix(local));
+            *gizmo_local_transform = new_transform;
         }
-        _ => panic!(),
-    }
-}
-
-#[derive(Resource, Default)]
-pub struct DebugVectors {
-    vertical_vector: Vec3,
-    plane_normal: Vec3,
-    plane_origin: Vec3,
-    cursor_plane_intersection: Vec3,
-    cursor_vector: Vec3,
-}
-
-impl DebugVectors {
-    fn value(self, which: WhichDebugVector) -> Vec3 {
-        match which {
-            WhichDebugVector::VerticalVector => self.vertical_vector,
-            WhichDebugVector::PlaneNormal => self.plane_normal,
-            WhichDebugVector::PlaneOrigin => self.plane_origin,
-            WhichDebugVector::CursorPlaneIntersection => self.cursor_plane_intersection,
-            WhichDebugVector::CursorVector => self.cursor_vector,
-        }
-    }
-}
-
-impl WhichDebugVector {
-    pub fn egui_color(&self) -> Color32 {
-        let color = self.color().to_srgba();
-        Color32::from_rgba_unmultiplied(
-            (color.red * 255.0) as u8,
-            (color.green * 255.0) as u8,
-            (color.blue * 255.0) as u8,
-            (color.alpha * 255.0) as u8,
-        )
-    }
-    fn color(&self) -> Color {
-        use WhichDebugVector::*;
-        match self {
-            VerticalVector => AQUA.into(),
-            PlaneNormal => RED.into(),
-            PlaneOrigin => YELLOW.into(),
-            CursorPlaneIntersection => LIME.into(),
-            CursorVector => PURPLE.into(),
-        }
-    }
-}
-
-#[derive(Component, Copy, Clone)]
-pub enum WhichDebugVector {
-    VerticalVector,
-    PlaneNormal,
-    PlaneOrigin,
-    CursorPlaneIntersection,
-    CursorVector,
-}
-
-fn debug_ui(
-    mut contexts: EguiContexts,
-    vectors: Res<DebugVectors>,
-    gizmo_query: Query<&Transform, With<TransformGizmo>>,
-) {
-    let ctx = contexts.ctx_mut().unwrap();
-    egui::Window::new("DebugVectors").show(ctx, |ui| {
-        if let Ok(gizmo_transform) = gizmo_query.single() {
-            ui.label(format!("gizmo.............{}", gizmo_transform.translation));
-        } else {
-            ui.label("gizmo.............error");
-        }
-        // initial click
-        let color = WhichDebugVector::PlaneOrigin.egui_color();
-        let color_txt =
-            RichText::new(format!("plane_origin......{}", vectors.plane_origin)).color(color);
-        ui.label(color_txt);
-
-        // drag location
-        let color = WhichDebugVector::CursorPlaneIntersection.egui_color();
-        let color_txt = RichText::new(format!(
-            "cursor_plane_inte.{}",
-            vectors.cursor_plane_intersection
-        ))
-        .color(color);
-        ui.label(color_txt);
-
-        let color = WhichDebugVector::VerticalVector.egui_color();
-        let color_txt =
-            RichText::new(format!("vertical_vector...{}", vectors.vertical_vector)).color(color);
-        ui.label(color_txt);
-
-        let color = WhichDebugVector::PlaneNormal.egui_color();
-        let color_txt =
-            RichText::new(format!("plane_normal......{}", vectors.plane_normal)).color(color);
-        ui.label(color_txt);
-
-        let color = WhichDebugVector::CursorVector.egui_color();
-        let color_txt =
-            RichText::new(format!("cursor_vector.....{}", vectors.cursor_vector)).color(color);
-        ui.label(color_txt);
-    });
-}
-
-fn spawn_arrow_vector(
-    mut commands: Commands,
-    vector_type: WhichDebugVector,
-    meshes: &mut Assets<Mesh>,
-    materials: &mut Assets<StandardMaterial>,
-) {
-    let axis_length = 1.0;
-    let arrow_tail_mesh = meshes.add(Capsule3d {
-        radius: 0.04,
-        half_length: axis_length * 0.5f32,
-    });
-    let cone_mesh = meshes.add(cone::Cone {
-        height: 0.25,
-        radius: 0.10,
-        ..Default::default()
-    });
-    commands
-        .spawn((vector_type, Transform::default(), Visibility::Visible))
-        .with_children(|parent| {
-            parent.spawn((
-                Mesh3d(arrow_tail_mesh.clone()),
-                MeshMaterial3d(materials.add(StandardMaterial {
-                    base_color: vector_type.color(),
-                    ..default()
-                })),
-                Transform::from_translation(Vec3::new(0.0, axis_length / 2.0, 0.0)),
-            ));
-            parent.spawn((
-                Mesh3d(cone_mesh.clone()),
-                MeshMaterial3d(materials.add(StandardMaterial {
-                    base_color: vector_type.color(),
-                    ..default()
-                })),
-                Transform::from_translation(Vec3::new(0.0, axis_length, 0.0)),
-            ));
-        });
-}
-
-fn setup_debug_vectors(
-    mut commands: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
-) {
-    spawn_arrow_vector(
-        commands.reborrow(),
-        WhichDebugVector::VerticalVector,
-        &mut meshes,
-        &mut materials,
-    );
-    spawn_arrow_vector(
-        commands.reborrow(),
-        WhichDebugVector::PlaneNormal,
-        &mut meshes,
-        &mut materials,
-    );
-    spawn_arrow_vector(
-        commands.reborrow(),
-        WhichDebugVector::CursorVector,
-        &mut meshes,
-        &mut materials,
-    );
-
-    commands
-        .spawn((
-            WhichDebugVector::PlaneOrigin,
-            Transform::default(),
-            Visibility::Visible,
-        ))
-        .with_children(|parent| {
-            parent.spawn((
-                Mesh3d(meshes.add(Sphere::new(0.05))),
-                MeshMaterial3d(materials.add(StandardMaterial {
-                    base_color: WhichDebugVector::PlaneOrigin.color(),
-                    ..default()
-                })),
-            ));
-        });
-
-    commands
-        .spawn((
-            WhichDebugVector::CursorPlaneIntersection,
-            Transform::default(),
-            Visibility::Visible,
-        ))
-        .with_children(|parent| {
-            parent.spawn((
-                Mesh3d(meshes.add(Sphere::new(0.05))),
-                MeshMaterial3d(materials.add(StandardMaterial {
-                    base_color: WhichDebugVector::CursorPlaneIntersection.color(),
-                    ..default()
-                })),
-            ));
-        });
-}
-
-fn update_debug_vectors(
-    vectors: Res<DebugVectors>,
-    query: Query<(&WhichDebugVector, &mut Transform)>,
-) {
-    for (vector, mut transform) in query {
-        match vector {
-            WhichDebugVector::VerticalVector => {
-                let local_forward = Vec3::Y;
-                transform.rotation =
-                    Quat::from_rotation_arc(local_forward, vectors.vertical_vector);
-            }
-            WhichDebugVector::PlaneNormal => {
-                let local_forward = Vec3::Y;
-                transform.rotation = Quat::from_rotation_arc(local_forward, vectors.plane_normal);
-            }
-            WhichDebugVector::PlaneOrigin => {
-                transform.translation = vectors.plane_origin;
-            }
-            WhichDebugVector::CursorPlaneIntersection => {
-                transform.translation = vectors.cursor_plane_intersection;
-            }
-            WhichDebugVector::CursorVector => {
-                let local_forward = Vec3::Y;
-                transform.rotation = Quat::from_rotation_arc(local_forward, vectors.cursor_vector);
-            }
-        }
+        TransformGizmoInteraction::ScaleAxis {
+            original: _,
+            axis: _,
+        } => {}
     }
 }
 
 pub fn drag_axis_end(
-    drag: On<Pointer<DragEnd>>,
+    _drag: On<Pointer<DragEnd>>,
     mut commands: Commands,
     transform_query: Query<
         (
@@ -554,20 +320,4 @@ pub fn drag_axis_end(
     for (entity, _interaction, _child_of, _transform, _initial_transform) in transform_query {
         commands.entity(entity).remove::<InitialTransform>();
     }
-}
-
-pub fn click_rotate(drag: On<Pointer<DragStart>>) {
-    info!("click_rotate");
-}
-
-pub fn drag_rotate(drag: On<Pointer<Drag>>) {
-    info!("drag_rotate");
-}
-
-pub fn click_plane(drag: On<Pointer<DragStart>>) {
-    info!("click_plane");
-}
-
-pub fn drag_plane(drag: On<Pointer<Drag>>) {
-    info!("drag_plane");
 }
