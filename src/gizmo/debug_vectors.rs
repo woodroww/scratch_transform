@@ -1,8 +1,5 @@
 use crate::gizmo::TransformGizmo;
-use bevy::{
-    color::palettes::css::*, pbr::wireframe::Wireframe,
-    prelude::*,
-};
+use bevy::{color::palettes::css::*, pbr::wireframe::Wireframe, prelude::*};
 use bevy_inspector_egui::{
     bevy_egui::{EguiContexts, EguiPrimaryContextPass},
     egui::{self, Color32, RichText},
@@ -18,15 +15,16 @@ impl Plugin for DebugVectorsPlugin {
             .insert_resource(DebugVectors {
                 vertical_vector: Vec3::default(),
                 plane_normal: Vec3::default(),
-                ray: Ray3d {
+                picking_ray: Ray3d {
                     origin: Vec3::default(),
                     direction: Dir3::new(Vec3::new(1.0, 1.0, 0.0).normalize()).unwrap(),
                 },
                 plane_origin: Vec3::default(),
-                cursor_plane_intersection: Vec3::default(),
+                ray_plane_intersection: Vec3::default(),
                 cursor_vector: Vec3::default(),
                 cross_plane: Vec3::default(),
                 cross_plane_normal: Vec3::default(),
+                signed_distance: 0.0,
             })
             //.add_plugins(MaterialPlugin::<GizmoMaterial>::default())
             .add_systems(EguiPrimaryContextPass, debug_ui)
@@ -41,12 +39,13 @@ impl Plugin for DebugVectorsPlugin {
 pub struct DebugVectors {
     pub vertical_vector: Vec3,
     pub plane_normal: Vec3,
-    pub ray: Ray3d,
+    pub picking_ray: Ray3d,
     pub plane_origin: Vec3,              // initial click
-    pub cursor_plane_intersection: Vec3, // drag location
+    pub ray_plane_intersection: Vec3, // drag location
     pub cursor_vector: Vec3,
     pub cross_plane: Vec3,
     pub cross_plane_normal: Vec3,
+    pub signed_distance: f32,
 }
 
 impl DebugVectors {
@@ -55,23 +54,23 @@ impl DebugVectors {
             WhichDebugVector::VerticalVector => self.vertical_vector,
             WhichDebugVector::PlaneNormal => self.plane_normal,
             WhichDebugVector::PlaneOrigin => self.plane_origin,
-            WhichDebugVector::CursorPlaneIntersection => self.cursor_plane_intersection,
+            WhichDebugVector::RayPlaneIntersection => self.ray_plane_intersection,
             WhichDebugVector::CursorVector => self.cursor_vector,
-            WhichDebugVector::PickingRay => *self.ray.direction,
-            WhichDebugVector::CrossPlane => self.cross_plane,
-            WhichDebugVector::CrossPlaneNormal => self.cross_plane_normal,
+            WhichDebugVector::PickingRay => *self.picking_ray.direction,
+            //WhichDebugVector::CrossPlane => self.cross_plane,
+            //WhichDebugVector::CrossPlaneNormal => self.cross_plane_normal,
         }
     }
 
-    pub const VALUES: [WhichDebugVector; 8] = [
+    pub const VALUES: [WhichDebugVector; 6] = [
         WhichDebugVector::VerticalVector,
         WhichDebugVector::PlaneNormal,
         WhichDebugVector::PlaneOrigin,
-        WhichDebugVector::CursorPlaneIntersection,
+        WhichDebugVector::RayPlaneIntersection,
         WhichDebugVector::CursorVector,
         WhichDebugVector::PickingRay,
-        WhichDebugVector::CrossPlane,
-        WhichDebugVector::CrossPlaneNormal,
+        //WhichDebugVector::CrossPlane,
+        //WhichDebugVector::CrossPlaneNormal,
     ];
 }
 
@@ -91,11 +90,11 @@ impl WhichDebugVector {
             VerticalVector => AQUA.into(),
             PlaneNormal => RED.into(),
             PlaneOrigin => YELLOW.into(),
-            CursorPlaneIntersection => LIME.into(),
+            RayPlaneIntersection => LIME.into(),
             CursorVector => WHITE.into(),
             PickingRay => ORANGE.into(),
-            CrossPlane => PURPLE.into(),
-            CrossPlaneNormal => PURPLE.into(),
+            //CrossPlane => PURPLE.into(),
+            //CrossPlaneNormal => PURPLE.into(),
         }
     }
 }
@@ -105,11 +104,11 @@ pub enum WhichDebugVector {
     VerticalVector,
     PlaneNormal,
     PlaneOrigin, // initial click // first original plane, plane rotates to stay on plane with 3d drag
-    CursorPlaneIntersection, // drag location
+    RayPlaneIntersection, // drag location
     CursorVector,
     PickingRay,
-    CrossPlane, // which side determines length sign
-    CrossPlaneNormal,
+    //CrossPlane, // which side determines length sign
+    //CrossPlaneNormal,
 }
 
 pub fn debug_ui(
@@ -127,12 +126,25 @@ pub fn debug_ui(
         } else {
             ui.label("gizmo.............error");
         }
-        for item in DebugVectors::VALUES {
+
+        let interesting = [
+            WhichDebugVector::VerticalVector,
+            WhichDebugVector::CursorVector,
+            WhichDebugVector::PlaneNormal,
+            WhichDebugVector::PlaneOrigin,
+            WhichDebugVector::PickingRay,
+            WhichDebugVector::RayPlaneIntersection,
+            //WhichDebugVector::CrossPlaneNormal,
+        ];
+        for item in interesting {
             let mut text = RichText::new(format!("{:?}\n{:.2}", item, vectors.value(item)))
                 .color(item.egui_color());
-            text = text.size(30.0);
+            text = text.size(25.0);
             ui.label(text);
         }
+        let mut text = RichText::new(format!("Signed distance {:.2}", vectors.signed_distance));
+        text = text.size(25.0);
+        ui.label(text);
     });
 }
 
@@ -204,6 +216,7 @@ pub fn setup_debug_vectors(
         &mut materials,
     );
 
+    /*
     spawn_arrow_vector(
         commands.reborrow(),
         WhichDebugVector::CrossPlaneNormal,
@@ -226,6 +239,7 @@ pub fn setup_debug_vectors(
                 Wireframe,
             ));
         });
+    */
 
     commands
         .spawn((
@@ -246,7 +260,7 @@ pub fn setup_debug_vectors(
 
     commands
         .spawn((
-            WhichDebugVector::CursorPlaneIntersection,
+            WhichDebugVector::RayPlaneIntersection,
             Transform::default(),
             Visibility::Visible,
         ))
@@ -254,7 +268,7 @@ pub fn setup_debug_vectors(
             parent.spawn((
                 Mesh3d(meshes.add(Sphere::new(0.05))),
                 MeshMaterial3d(materials.add(StandardMaterial {
-                    base_color: WhichDebugVector::CursorPlaneIntersection.color(),
+                    base_color: WhichDebugVector::RayPlaneIntersection.color(),
                     ..default()
                 })),
             ));
@@ -267,6 +281,8 @@ pub fn update_debug_vectors(
     vectors: Res<DebugVectors>,
     query: Query<(&WhichDebugVector, &mut Transform)>,
 ) {
+    let axis_length = 1.3; // from mesh/mod.rs
+
     for (vector, mut transform) in query {
         match vector {
             WhichDebugVector::VerticalVector => {
@@ -274,16 +290,30 @@ pub fn update_debug_vectors(
                 transform.rotation =
                     Quat::from_rotation_arc(local_forward, vectors.vertical_vector);
             }
-            WhichDebugVector::CursorPlaneIntersection => {
-                transform.translation = vectors.cursor_plane_intersection;
+            WhichDebugVector::RayPlaneIntersection => {
+                transform.translation = vectors.ray_plane_intersection;
             }
             WhichDebugVector::CursorVector => {
-                let local_forward = Vec3::Y;
-                transform.rotation = Quat::from_rotation_arc(local_forward, vectors.cursor_vector);
+                let local_forward = Vec3::NEG_Y;
+                transform.translation = vectors.ray_plane_intersection;
+                let norm = vectors.cursor_vector.normalize();
+                transform.rotation = Quat::from_rotation_arc(local_forward, norm);
+
+                // let cursor_vector: Vec3 = ray_plane_intersection - plane_origin;
+                // vectors.ray_plane_intersection - vectors.plane_origin;
+                let len = vectors.cursor_vector.length();
+                let mult = len / axis_length;
+                transform.scale.y = mult;
+
             }
             WhichDebugVector::PickingRay => {
                 let local_forward = Vec3::Y;
-                transform.rotation = Quat::from_rotation_arc(local_forward, *vectors.ray.direction);
+                transform.rotation = Quat::from_rotation_arc(local_forward, *vectors.picking_ray.direction);
+                let diff = vectors.ray_plane_intersection - vectors.picking_ray.origin;
+                let len = diff.length();
+                let mult = len / axis_length;
+                transform.scale.y = mult;
+                transform.translation = vectors.picking_ray.origin;
             }
             WhichDebugVector::PlaneOrigin => {
                 // the original first plane
@@ -292,24 +322,24 @@ pub fn update_debug_vectors(
                 transform.translation = vectors.plane_origin;
             }
             WhichDebugVector::PlaneNormal => {
-                //let local_forward = transform.up();
                 let local_forward = Vec3::Y;
                 transform.rotation = Quat::from_rotation_arc(local_forward, vectors.plane_normal);
                 transform.translation = vectors.plane_origin;
             }
+            /*
             WhichDebugVector::CrossPlane => {
-                let local_forward = Vec3::Z;
-                transform.rotation = Quat::from_rotation_arc(local_forward, vectors.plane_normal);
+                let local_forward = Vec3::Y;
+                transform.rotation =
+                    Quat::from_rotation_arc(local_forward, vectors.cross_plane_normal);
                 transform.translation = vectors.plane_origin;
             }
             WhichDebugVector::CrossPlaneNormal => {
                 let local_forward = Vec3::Y;
-                let rotation = Quat::from_rotation_arc(local_forward, vectors.cross_plane_normal);
-                let mut new_transform = Transform::from_translation(vectors.plane_origin);
-                new_transform.rotation = rotation;
-                //transform.rotate_local_x(90_f32.to_radians());
-                *transform = new_transform;
+                transform.rotation =
+                    Quat::from_rotation_arc(local_forward, vectors.cross_plane_normal);
+                transform.translation = vectors.plane_origin;
             }
+*/
         }
     }
 }

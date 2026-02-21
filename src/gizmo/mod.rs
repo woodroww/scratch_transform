@@ -1,5 +1,5 @@
 use bevy::{
-    color::palettes::css::ORANGE, picking::backend::PointerHits, prelude::*, window::PrimaryWindow,
+    picking::backend::PointerHits, prelude::*, window::PrimaryWindow,
 };
 
 use crate::{
@@ -24,12 +24,6 @@ pub enum TransformGizmoInteraction {
     TranslatePlane { original: Vec3, normal: Vec3 },
     RotateAxis { original: Vec3, axis: Vec3 },
     ScaleAxis { original: Vec3, axis: Vec3 },
-}
-
-#[derive(Component)]
-pub struct InitialTransform {
-    transform: Transform,
-    rotation_offset: Vec3,
 }
 
 #[derive(Default, PartialEq, Component)]
@@ -223,35 +217,37 @@ pub fn drag_axis(
             let vertical_vector = picking_ray.direction.cross(axis).normalize();
             let plane_normal = axis.cross(vertical_vector).normalize();
             let plane_origin = drag_start;
-            let Some(cursor_plane_intersection) =
+            let Some(ray_plane_intersection) =
                 intersect_plane(picking_ray, plane_normal, plane_origin)
             else {
                 warn!("what? None cursor_plane_intersection");
                 return;
             };
-            let cursor_vector: Vec3 = cursor_plane_intersection - plane_origin;
+            let cursor_vector: Vec3 = ray_plane_intersection - plane_origin;
             let normalized_translation_axis = (initial_transform.rotation * axis).normalize();
 
             let plane = InfinitePlane3d::new(normalized_translation_axis);
             let isometry = Isometry3d::from_translation(plane_origin);
             // so we needed a signed distance instead of length
-            let what = plane.signed_distance(isometry, cursor_plane_intersection);
-            let jammy = normalized_translation_axis * what;
+            let signed_distance = plane.signed_distance(isometry, ray_plane_intersection);
+            //let signed_distance = cursor_vector.length();
+
+            let translation = normalized_translation_axis * signed_distance;
             // if cursor_plane_intersection crosses the plane_origin on the translated axis
             // length sign needs to change
-            //let jammy = normalized_translation_axis * cursor_vector;
            
-            let new_translation = initial_transform.translation + jammy;
+            let new_translation = initial_transform.translation + translation;
 
             *debug_vectors = DebugVectors {
                 vertical_vector,
                 plane_normal,
-                ray: picking_ray,
+                picking_ray,
                 plane_origin,
-                cursor_plane_intersection,
+                ray_plane_intersection,
                 cursor_vector,
                 cross_plane: debug_vectors.cross_plane,
                 cross_plane_normal: normalized_translation_axis,
+                signed_distance,
             };
 
             gizmo_local_transform.translation = new_translation;
@@ -261,7 +257,7 @@ pub fn drag_axis(
             normal,
         } => {
             let plane_origin = drag_start;
-            let Some(cursor_plane_intersection) =
+            let Some(ray_plane_intersection) =
                 intersect_plane(picking_ray, normal, plane_origin)
             else {
                 warn!("what? None cursor_plane_intersection");
@@ -269,7 +265,7 @@ pub fn drag_axis(
             };
 
             let new_transform = Transform {
-                translation: initial_transform.translation + cursor_plane_intersection - drag_start,
+                translation: initial_transform.translation + ray_plane_intersection - drag_start,
                 rotation: initial_transform.rotation,
                 scale: initial_transform.scale,
             };
@@ -287,14 +283,7 @@ pub fn drag_axis(
             let det = axis.dot(drag_start.cross(cursor_vector));
             let angle = det.atan2(dot);
             let rotation = Quat::from_axis_angle(axis, angle);
-            let mut new_transform = Transform {
-                translation: initial_transform.translation, //+ offset,
-                rotation: initial_transform.rotation,
-                scale: initial_transform.scale,
-            };
-            new_transform.rotate_local(rotation);
-            //let local = inverse_parent * new_transform.compute_matrix();
-            *gizmo_local_transform = new_transform;
+            gizmo_local_transform.rotation = rotation;
         }
         TransformGizmoInteraction::ScaleAxis {
             original: _,
@@ -312,12 +301,8 @@ pub fn drag_axis_end(
             &TransformGizmoInteraction,
             Option<&ChildOf>,
             &mut Transform,
-            &InitialTransform,
         ),
         Without<TransformGizmo>,
     >,
 ) {
-    for (entity, _interaction, _child_of, _transform, _initial_transform) in transform_query {
-        commands.entity(entity).remove::<InitialTransform>();
-    }
 }
