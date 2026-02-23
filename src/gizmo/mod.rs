@@ -214,8 +214,9 @@ pub fn drag_axis(
 
     match interaction {
         TransformGizmoInteraction::TranslateAxis { original: _, axis } => {
-            let vertical_vector = picking_ray.direction.cross(axis).normalize();
-            let plane_normal = axis.cross(vertical_vector).normalize();
+            let normalized_translation_axis = (initial_transform.rotation * axis).normalize();
+            let vertical_vector = picking_ray.direction.cross(normalized_translation_axis).normalize();
+            let plane_normal = normalized_translation_axis.cross(vertical_vector).normalize();
             let plane_origin = drag_start;
             let Some(ray_plane_intersection) =
                 intersect_plane(picking_ray, plane_normal, plane_origin)
@@ -224,21 +225,14 @@ pub fn drag_axis(
                 return;
             };
             let cursor_vector: Vec3 = ray_plane_intersection - plane_origin;
-            let normalized_translation_axis = (initial_transform.rotation * axis).normalize();
-
             let plane = InfinitePlane3d::new(normalized_translation_axis);
             let isometry = Isometry3d::from_translation(plane_origin);
-            // so we needed a signed distance instead of length
             let signed_distance = plane.signed_distance(isometry, ray_plane_intersection);
-            //let signed_distance = cursor_vector.length();
-
             let translation = normalized_translation_axis * signed_distance;
-            // if cursor_plane_intersection crosses the plane_origin on the translated axis
-            // length sign needs to change
-           
             let new_translation = initial_transform.translation + translation;
 
             *debug_vectors = DebugVectors {
+                translation_axis: normalized_translation_axis,
                 vertical_vector,
                 plane_normal,
                 picking_ray,

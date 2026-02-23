@@ -12,20 +12,7 @@ pub struct DebugVectorsPlugin;
 impl Plugin for DebugVectorsPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(Startup, setup_debug_vectors)
-            .insert_resource(DebugVectors {
-                vertical_vector: Vec3::default(),
-                plane_normal: Vec3::default(),
-                picking_ray: Ray3d {
-                    origin: Vec3::default(),
-                    direction: Dir3::new(Vec3::new(1.0, 1.0, 0.0).normalize()).unwrap(),
-                },
-                plane_origin: Vec3::default(),
-                ray_plane_intersection: Vec3::default(),
-                cursor_vector: Vec3::default(),
-                cross_plane: Vec3::default(),
-                cross_plane_normal: Vec3::default(),
-                signed_distance: 0.0,
-            })
+            .insert_resource(DebugVectors::default())
             //.add_plugins(MaterialPlugin::<GizmoMaterial>::default())
             .add_systems(EguiPrimaryContextPass, debug_ui)
             .add_systems(
@@ -37,10 +24,11 @@ impl Plugin for DebugVectorsPlugin {
 
 #[derive(Resource)]
 pub struct DebugVectors {
+    pub translation_axis: Vec3,
     pub vertical_vector: Vec3,
     pub plane_normal: Vec3,
     pub picking_ray: Ray3d,
-    pub plane_origin: Vec3,              // initial click
+    pub plane_origin: Vec3,           // initial click
     pub ray_plane_intersection: Vec3, // drag location
     pub cursor_vector: Vec3,
     pub cross_plane: Vec3,
@@ -48,9 +36,30 @@ pub struct DebugVectors {
     pub signed_distance: f32,
 }
 
+impl Default for DebugVectors {
+    fn default() -> Self {
+        Self {
+            translation_axis: Default::default(),
+            vertical_vector: Default::default(),
+            plane_normal: Default::default(),
+            picking_ray: Ray3d {
+                origin: Vec3::default(),
+                direction: Dir3::new(Vec3::new(1.0, 1.0, 0.0).normalize()).unwrap(),
+            },
+            plane_origin: Default::default(),
+            ray_plane_intersection: Default::default(),
+            cursor_vector: Default::default(),
+            cross_plane: Default::default(),
+            cross_plane_normal: Default::default(),
+            signed_distance: Default::default(),
+        }
+    }
+}
+
 impl DebugVectors {
     fn value(&self, which: WhichDebugVector) -> Vec3 {
         match which {
+            WhichDebugVector::AxisVector => self.translation_axis,
             WhichDebugVector::VerticalVector => self.vertical_vector,
             WhichDebugVector::PlaneNormal => self.plane_normal,
             WhichDebugVector::PlaneOrigin => self.plane_origin,
@@ -87,28 +96,26 @@ impl WhichDebugVector {
     fn color(&self) -> Color {
         use WhichDebugVector::*;
         match self {
+            AxisVector => PURPLE.into(),
             VerticalVector => AQUA.into(),
             PlaneNormal => RED.into(),
             PlaneOrigin => YELLOW.into(),
             RayPlaneIntersection => LIME.into(),
             CursorVector => WHITE.into(),
             PickingRay => ORANGE.into(),
-            //CrossPlane => PURPLE.into(),
-            //CrossPlaneNormal => PURPLE.into(),
         }
     }
 }
 
 #[derive(Component, Copy, Clone, Debug)]
 pub enum WhichDebugVector {
+    AxisVector,
     VerticalVector,
     PlaneNormal,
     PlaneOrigin, // initial click // first original plane, plane rotates to stay on plane with 3d drag
     RayPlaneIntersection, // drag location
     CursorVector,
     PickingRay,
-    //CrossPlane, // which side determines length sign
-    //CrossPlaneNormal,
 }
 
 pub fn debug_ui(
@@ -191,6 +198,12 @@ pub fn setup_debug_vectors(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
+    spawn_arrow_vector(
+        commands.reborrow(),
+        WhichDebugVector::AxisVector,
+        &mut meshes,
+        &mut materials,
+    );
     spawn_arrow_vector(
         commands.reborrow(),
         WhichDebugVector::VerticalVector,
@@ -285,6 +298,11 @@ pub fn update_debug_vectors(
 
     for (vector, mut transform) in query {
         match vector {
+            WhichDebugVector::AxisVector => {
+                let local_forward = Vec3::Y;
+                transform.rotation =
+                    Quat::from_rotation_arc(local_forward, vectors.translation_axis);
+            }
             WhichDebugVector::VerticalVector => {
                 let local_forward = Vec3::Y;
                 transform.rotation =
@@ -304,11 +322,11 @@ pub fn update_debug_vectors(
                 let len = vectors.cursor_vector.length();
                 let mult = len / axis_length;
                 transform.scale.y = mult;
-
             }
             WhichDebugVector::PickingRay => {
                 let local_forward = Vec3::Y;
-                transform.rotation = Quat::from_rotation_arc(local_forward, *vectors.picking_ray.direction);
+                transform.rotation =
+                    Quat::from_rotation_arc(local_forward, *vectors.picking_ray.direction);
                 let diff = vectors.ray_plane_intersection - vectors.picking_ray.origin;
                 let len = diff.length();
                 let mult = len / axis_length;
@@ -325,21 +343,20 @@ pub fn update_debug_vectors(
                 let local_forward = Vec3::Y;
                 transform.rotation = Quat::from_rotation_arc(local_forward, vectors.plane_normal);
                 transform.translation = vectors.plane_origin;
-            }
-            /*
-            WhichDebugVector::CrossPlane => {
-                let local_forward = Vec3::Y;
-                transform.rotation =
-                    Quat::from_rotation_arc(local_forward, vectors.cross_plane_normal);
-                transform.translation = vectors.plane_origin;
-            }
-            WhichDebugVector::CrossPlaneNormal => {
-                let local_forward = Vec3::Y;
-                transform.rotation =
-                    Quat::from_rotation_arc(local_forward, vectors.cross_plane_normal);
-                transform.translation = vectors.plane_origin;
-            }
-*/
+            } /*
+                          WhichDebugVector::CrossPlane => {
+                              let local_forward = Vec3::Y;
+                              transform.rotation =
+                                  Quat::from_rotation_arc(local_forward, vectors.cross_plane_normal);
+                              transform.translation = vectors.plane_origin;
+                          }
+                          WhichDebugVector::CrossPlaneNormal => {
+                              let local_forward = Vec3::Y;
+                              transform.rotation =
+                                  Quat::from_rotation_arc(local_forward, vectors.cross_plane_normal);
+                              transform.translation = vectors.plane_origin;
+                          }
+              */
         }
     }
 }
