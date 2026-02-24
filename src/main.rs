@@ -1,4 +1,4 @@
-use bevy::{pbr::wireframe::WireframePlugin, prelude::*};
+use bevy::{gizmos::GizmoPlugin, pbr::wireframe::WireframePlugin, prelude::*};
 use bevy_inspector_egui::bevy_egui::EguiPlugin;
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
 use bevy_panorbit_camera::{PanOrbitCamera, PanOrbitCameraPlugin};

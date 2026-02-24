@@ -1,5 +1,7 @@
 use bevy::prelude::*;
 
+use crate::gizmo_material::GizmoMaterial;
+
 pub struct AxisPlugin;
 
 impl Plugin for AxisPlugin {
@@ -30,19 +32,19 @@ struct AxisMarker;
 fn spawn_main_axis(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
+    mut materials: ResMut<Assets<GizmoMaterial>>,
 ) {
     let length = 10.0;
     let width = 0.01;
-    let gray = Color::srgb(0.2, 0.2, 0.2);
+    let gray = Color::srgb(0.4, 0.4, 0.4);
 
-    let x = Cuboid::new(length, width, width);
+    let x = Cylinder::new(width, length);
     let red = Color::srgb(1.0, 0.0, 0.0);
 
-    let y = Cuboid::new(width, length, width);
+    let y = Cylinder::new(width, length);
     let green = Color::srgb(0.0, 1.0, 0.0);
 
-    let z = Cuboid::new(width, width, length);
+    let z = Cylinder::new(width, length);
     let blue = Color::srgb(0.0, 0.0, 1.0);
 
     let empty: Entity = commands
@@ -56,67 +58,70 @@ fn spawn_main_axis(
         .id();
 
     commands.entity(empty).with_children(|parent| {
-        let x_translation = Vec3::new(length / 2.0, 0.0, 0.0);
+        let mut x_transform = Transform::default();//from_translation(x_translation);
+        x_transform.rotate_z(90_f32.to_radians());
+        x_transform.translation.x += length / 2.0;
         parent.spawn((
             Name::from("x-axis red"),
             Mesh3d(meshes.add(x)),
-            MeshMaterial3d(materials.add(StandardMaterial {
-                base_color: red,
-                ..Default::default()
+            MeshMaterial3d(materials.add(GizmoMaterial {
+                color: red.into(),
             })),
-            Transform::from_translation(x_translation),
+            x_transform,
         ));
+
+        x_transform.translation.x -= length;
         parent.spawn((
             Name::from("negative x-axis gray"),
             Mesh3d(meshes.add(x)),
-            MeshMaterial3d(materials.add(StandardMaterial {
-                base_color: gray,
-                ..Default::default()
+            MeshMaterial3d(materials.add(GizmoMaterial {
+                color: gray.into(),
             })),
-            Transform::from_translation(x_translation)
-                .rotate_y(180_f32.to_radians()),
+            x_transform,
         ));
 
-        let y_translation = Vec3::new(0.0, length / 2.0, 0.0);
+        let mut y_transform = Transform::default();//from_translation(x_translation);
+        y_transform.rotate_y(90_f32.to_radians());
+        y_transform.translation.y += length / 2.0;
         parent.spawn((
             Name::from("y-axis green"),
             Mesh3d(meshes.add(y)),
-            MeshMaterial3d(materials.add(StandardMaterial {
-                base_color: green,
-                ..Default::default()
+            MeshMaterial3d(materials.add(GizmoMaterial {
+                color: green.into(),
             })),
-            Transform::from_translation(y_translation),
-        ));
-        parent.spawn((
-            Name::from("negative y-axis gray"),
-            Mesh3d(meshes.add(y)),
-            MeshMaterial3d(materials.add(StandardMaterial {
-                base_color: gray,
-                ..Default::default()
-            })),
-            Transform::from_translation(y_translation)
-                .rotate_x(180_f32.to_radians()),
+            y_transform,
         ));
 
-        let z_translation = Vec3::new(0.0, 0.0, length / 2.0);
+        y_transform.translation.y -= length;
+        parent.spawn((
+            Name::from("negative y-axis green"),
+            Mesh3d(meshes.add(y)),
+            MeshMaterial3d(materials.add(GizmoMaterial {
+                color: gray.into(),
+            })),
+            y_transform,
+        ));
+
+        let mut z_transform = Transform::default();
+        z_transform.rotate_x(90_f32.to_radians());
+        z_transform.translation.z += length / 2.0;
         parent.spawn((
             Name::from("z-axis blue"),
             Mesh3d(meshes.add(z)),
-            MeshMaterial3d(materials.add(StandardMaterial {
-                base_color: blue,
-                ..Default::default()
+            MeshMaterial3d(materials.add(GizmoMaterial {
+                color: blue.into(),
             })),
-            Transform::from_translation(z_translation)
+            z_transform,
         ));
+
+        z_transform.translation.z -= length;
         parent.spawn((
             Name::from("negative z-axis gray"),
             Mesh3d(meshes.add(z)),
-            MeshMaterial3d(materials.add(StandardMaterial {
-                base_color: gray,
-                ..Default::default()
+            MeshMaterial3d(materials.add(GizmoMaterial {
+                color: gray.into(),
             })),
-            Transform::from_translation(z_translation)
-                .rotate_z(180_f32.to_radians()),
+            z_transform,
         ));
     });
 }

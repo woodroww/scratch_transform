@@ -4,8 +4,9 @@ use crate::{
 };
 use bevy::{light::NotShadowCaster, prelude::*};
 
-pub mod cone;
 pub mod truncated_torus;
+
+const GIZMO_AXIS_LENGTH: f32 = 1.3;
 
 /// Startup system that builds the procedural mesh and materials of the gizmo.
 pub fn spawn_gizmo(
@@ -14,20 +15,18 @@ pub fn spawn_gizmo(
     mut materials: ResMut<Assets<GizmoMaterial>>,
 ) {
     // Define gizmo size
-    let axis_length = 1.3;
     let arc_radius = 1.;
-    let plane_size = axis_length * 0.25;
-    let plane_offset = plane_size / 2. + axis_length * 0.2;
+    let plane_size = GIZMO_AXIS_LENGTH * 0.25;
+    let plane_offset = plane_size / 2. + GIZMO_AXIS_LENGTH * 0.2;
 
     // Define gizmo meshes
     let arrow_tail_mesh = meshes.add(Capsule3d {
         radius: 0.04,
-        half_length: axis_length * 0.5f32,
+        half_length: GIZMO_AXIS_LENGTH * 0.5f32,
     });
-    let cone_mesh = meshes.add(cone::Cone {
+    let cone_mesh = meshes.add(Cone {
         height: 0.25,
         radius: 0.10,
-        ..Default::default()
     });
     let plane_mesh = meshes.add(Plane3d::default().mesh().size(plane_size, plane_size));
     let sphere_mesh = meshes.add(Sphere { radius: 0.2 });
@@ -58,7 +57,7 @@ pub fn spawn_gizmo(
                     MeshMaterial3d(gizmo_matl_x.clone()),
                     Transform::from_matrix(Mat4::from_rotation_translation(
                         Quat::from_rotation_z(std::f32::consts::PI / 2.0),
-                        Vec3::new(axis_length / 2.0, 0.0, 0.0),
+                        Vec3::new(GIZMO_AXIS_LENGTH / 2.0, 0.0, 0.0),
                     )),
                     TransformGizmoInteraction::TranslateAxis {
                         original: Vec3::X,
@@ -76,7 +75,7 @@ pub fn spawn_gizmo(
                     MeshMaterial3d(gizmo_matl_y.clone()),
                     Transform::from_matrix(Mat4::from_rotation_translation(
                         Quat::from_rotation_y(std::f32::consts::PI / 2.0),
-                        Vec3::new(0.0, axis_length / 2.0, 0.0),
+                        Vec3::new(0.0, GIZMO_AXIS_LENGTH / 2.0, 0.0),
                     )),
                     TransformGizmoInteraction::TranslateAxis {
                         original: Vec3::Y,
@@ -94,7 +93,7 @@ pub fn spawn_gizmo(
                     MeshMaterial3d(gizmo_matl_z.clone()),
                     Transform::from_matrix(Mat4::from_rotation_translation(
                         Quat::from_rotation_x(std::f32::consts::PI / 2.0),
-                        Vec3::new(0.0, 0.0, axis_length / 2.0),
+                        Vec3::new(0.0, 0.0, GIZMO_AXIS_LENGTH / 2.0),
                     )),
                     TransformGizmoInteraction::TranslateAxis {
                         original: Vec3::Z,
@@ -114,7 +113,7 @@ pub fn spawn_gizmo(
                     MeshMaterial3d(gizmo_matl_x_sel.clone()),
                     Transform::from_matrix(Mat4::from_rotation_translation(
                         Quat::from_rotation_z(std::f32::consts::PI / -2.0),
-                        Vec3::new(axis_length, 0.0, 0.0),
+                        Vec3::new(GIZMO_AXIS_LENGTH, 0.0, 0.0),
                     )),
                     TransformGizmoInteraction::TranslateAxis {
                         original: Vec3::X,
@@ -151,7 +150,7 @@ pub fn spawn_gizmo(
                 .spawn((
                     Mesh3d(cone_mesh.clone()),
                     MeshMaterial3d(gizmo_matl_y_sel.clone()),
-                    Transform::from_translation(Vec3::new(0.0, axis_length, 0.0)),
+                    Transform::from_translation(Vec3::new(0.0, GIZMO_AXIS_LENGTH, 0.0)),
                     TransformGizmoInteraction::TranslateAxis {
                         original: Vec3::Y,
                         axis: Vec3::Y,
@@ -186,7 +185,7 @@ pub fn spawn_gizmo(
                     MeshMaterial3d(gizmo_matl_z_sel.clone()),
                     Transform::from_matrix(Mat4::from_rotation_translation(
                         Quat::from_rotation_x(std::f32::consts::PI / 2.0),
-                        Vec3::new(0.0, 0.0, axis_length),
+                        Vec3::new(0.0, 0.0, GIZMO_AXIS_LENGTH),
                     )),
                     TransformGizmoInteraction::TranslateAxis {
                         original: Vec3::Z,

@@ -1,9 +1,9 @@
-use bevy::{
-    picking::backend::PointerHits, prelude::*, window::PrimaryWindow,
-};
+use std::env::set_current_dir;
+
+use bevy::{color::palettes::css::GREEN, math::ops::atan2, picking::backend::PointerHits, prelude::*, window::PrimaryWindow};
 
 use crate::{
-    gizmo::debug_vectors::{DebugVectors, DebugVectorsPlugin},
+    gizmo::debug_vectors::{DebugVectors, DebugVectorsPlugin, RotateDebugVectors},
     gizmo_material::GizmoMaterial,
 };
 
@@ -32,6 +32,7 @@ pub struct TransformGizmo {
     // Point in space where mouse-gizmo interaction started (on mouse down), used to compare how
     // much total dragging has occurred without accumulating error across frames.
     drag_start: Option<Vec3>,
+    screen_drag_start: Vec2,
     // Initial transform of the gizmo
     initial_transform: Transform,
     initial_global_transform: GlobalTransform,
@@ -71,7 +72,7 @@ pub struct TransformGizmoPlugin;
 impl Plugin for TransformGizmoPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(Startup, crate::mesh::spawn_gizmo)
-            .add_plugins(DebugVectorsPlugin)
+           // .add_plugins(DebugVectorsPlugin)
             .add_plugins(MaterialPlugin::<GizmoMaterial>::default());
     }
 }
@@ -142,12 +143,11 @@ pub fn click_axis(
         }
     }
 
-    let position = drag.pointer_location.position;
-
-    info!("click position: {:#?}", position);
-    println!("min entity: {:?}", min_entity);
+    //let position = drag.pointer_location.position;
+    //info!("click position: {:#?}", position);
+    //println!("min entity: {:?}", min_entity);
     debug_assert_eq!(min_entity, Some(drag.entity));
-    println!("min data:   {:?}", min_data);
+    //println!("min data:   {:?}", min_data);
 
     // if there are multiple gizmos allowed we're going to have to find the one clicked
     // but for now this
@@ -164,6 +164,7 @@ pub fn click_axis(
 
     transform_gizmo.current_interaction = Some(*interaction);
     transform_gizmo.drag_start = Some(min_data.unwrap().position.unwrap());
+    transform_gizmo.screen_drag_start = drag.pointer_location.position;
     transform_gizmo.initial_transform = *main_transform;
     transform_gizmo.initial_global_transform = *main_global_transform;
 }
@@ -173,7 +174,8 @@ pub fn drag_axis(
     pick_cam: Query<(&Camera, &GlobalTransform), With<GizmoPickSource>>,
     windows: Query<&mut Window, With<PrimaryWindow>>,
     mut gizmo_query: Query<(&mut Transform, &GlobalTransform, &mut TransformGizmo)>,
-    mut debug_vectors: ResMut<DebugVectors>,
+    mut debug_vectors: Option<ResMut<DebugVectors>>,
+    mut rotate_debug_vectors: Option<ResMut<RotateDebugVectors>>,
 ) {
     let Ok((mut gizmo_local_transform, _gizmo_global_transform, gizmo)) = gizmo_query.single_mut()
     else {
@@ -195,8 +197,9 @@ pub fn drag_axis(
         return;
     };
 
-    let pointer = drag.pointer_location.position;
-    let Some(picking_ray) = ray_from_screenspace(pointer, picking_camera, global_cam_tran, window)
+    let current_pointer = drag.pointer_location.position;
+    let Some(picking_ray) =
+        ray_from_screenspace(current_pointer, picking_camera, global_cam_tran, window)
     else {
         warn!("error creating ray");
         return;
@@ -215,8 +218,13 @@ pub fn drag_axis(
     match interaction {
         TransformGizmoInteraction::TranslateAxis { original: _, axis } => {
             let normalized_translation_axis = (initial_transform.rotation * axis).normalize();
-            let vertical_vector = picking_ray.direction.cross(normalized_translation_axis).normalize();
-            let plane_normal = normalized_translation_axis.cross(vertical_vector).normalize();
+            let vertical_vector = picking_ray
+                .direction
+                .cross(normalized_translation_axis)
+                .normalize();
+            let plane_normal = normalized_translation_axis
+                .cross(vertical_vector)
+                .normalize();
             let plane_origin = drag_start;
             let Some(ray_plane_intersection) =
                 intersect_plane(picking_ray, plane_normal, plane_origin)
@@ -231,18 +239,18 @@ pub fn drag_axis(
             let translation = normalized_translation_axis * signed_distance;
             let new_translation = initial_transform.translation + translation;
 
-            *debug_vectors = DebugVectors {
-                translation_axis: normalized_translation_axis,
-                vertical_vector,
-                plane_normal,
-                picking_ray,
-                plane_origin,
-                ray_plane_intersection,
-                cursor_vector,
-                cross_plane: debug_vectors.cross_plane,
-                cross_plane_normal: normalized_translation_axis,
-                signed_distance,
-            };
+            if let Some(mut debug) = debug_vectors {
+                *debug = DebugVectors {
+                    translation_axis: normalized_translation_axis,
+                    vertical_vector,
+                    plane_normal,
+                    picking_ray,
+                    plane_origin,
+                    ray_plane_intersection,
+                    cursor_vector,
+                    signed_distance,
+                };
+            }
 
             gizmo_local_transform.translation = new_translation;
         }
@@ -251,8 +259,7 @@ pub fn drag_axis(
             normal,
         } => {
             let plane_origin = drag_start;
-            let Some(ray_plane_intersection) =
-                intersect_plane(picking_ray, normal, plane_origin)
+            let Some(ray_plane_intersection) = intersect_plane(picking_ray, normal, plane_origin)
             else {
                 warn!("what? None cursor_plane_intersection");
                 return;
@@ -267,17 +274,51 @@ pub fn drag_axis(
             *gizmo_local_transform = new_transform;
         }
         TransformGizmoInteraction::RotateAxis { original: _, axis } => {
-            let Some(cursor_plane_intersection) =
-                intersect_plane(picking_ray, axis.normalize(), drag_start)
+            let Ok(screen_gizmo_center) =
+                picking_camera.world_to_viewport(global_cam_tran, initial_transform.translation)
             else {
+                warn!("what no screen_pos!");
                 return;
             };
-            let cursor_vector = (cursor_plane_intersection - drag_start).normalize();
-            let dot = drag_start.dot(cursor_vector);
-            let det = axis.dot(drag_start.cross(cursor_vector));
-            let angle = det.atan2(dot);
-            let rotation = Quat::from_axis_angle(axis, angle);
-            gizmo_local_transform.rotation = rotation;
+            // screen_gizmo_center, current_pointer, drag_start
+            //println!("gizmo:   {}", screen_gizmo_center);
+            let mut start = gizmo.screen_drag_start - screen_gizmo_center;
+            start.y = -start.y;
+            //println!("start:   {}", gizmo.screen_drag_start);
+            println!("start:   {}", start);
+            let mut current = current_pointer - screen_gizmo_center;
+            current.y = -current.y;
+            //println!("current: {}", current_pointer);
+            println!("current: {}", current);
+            let start_angle = atan2(start.y, start.x);
+            println!("start_angle:      {}", start_angle.to_degrees());
+            let current_angle = atan2(current.y, current.x);
+            println!("current_angle:    {}", current_angle.to_degrees());
+            let diff_angle = current_angle - start_angle;
+            println!("diff_angle:       {}", diff_angle.to_degrees());
+
+            //let normalized_translation_axis = (initial_transform.rotation * axis).normalize();
+            let normalized_translation_axis = axis;
+
+            let rotation = Quat::from_axis_angle(normalized_translation_axis, diff_angle);
+            gizmo_local_transform.rotation = initial_transform.rotation * rotation;
+
+            /*
+            if let Some(mut debug) = rotate_debug_vectors {
+                *debug = RotateDebugVectors {
+                    gizmo_initial_transform: initial_transform,
+                    rotation_axis: normalized_translation_axis,
+                    vertical_vector,
+                    plane_normal,
+                    picking_ray,
+                    plane_origin,
+                    ray_plane_intersection,
+                    dot,
+                    det,
+                    angle: diff_angle.to_degrees(),
+                };
+            }
+            */
         }
         TransformGizmoInteraction::ScaleAxis {
             original: _,
