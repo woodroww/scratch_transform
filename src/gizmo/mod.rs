@@ -1,10 +1,5 @@
-use std::{
-    env::set_current_dir,
-    f32::consts::{FRAC_PI_2, PI},
-};
-
 use bevy::{
-    color::palettes::css::GREEN, math::ops::atan2, picking::backend::PointerHits, prelude::*,
+    picking::backend::PointerHits, prelude::*,
     window::PrimaryWindow,
 };
 
@@ -78,9 +73,36 @@ pub struct TransformGizmoPlugin;
 impl Plugin for TransformGizmoPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(Startup, crate::mesh::spawn_gizmo)
-            .add_plugins(DebugVectorsPlugin)
+            .add_systems(Update, check_selection)
+            //.add_plugins(DebugVectorsPlugin)
             .add_plugins(MaterialPlugin::<GizmoMaterial>::default());
     }
+}
+
+fn check_selection(
+    mut query: Query<(Entity, &PickSelection, &GlobalTransform), Without<TransformGizmo>>,
+    mut gizmo: Query<(&mut Transform, &mut TransformGizmo)>,
+) {
+    let Ok((mut main_transform, mut gizmo)) = gizmo.single_mut()
+    else {
+        warn!("getting main gizmo error");
+        return;
+    };
+    if gizmo.drag_start.is_some() {
+        return;
+    }
+
+    let mut transform = Transform::default();
+    let mut pick_count = 0;
+    for (_entity, _pick, trans) in query.iter_mut().filter(|(_, p, _)| p.is_selected) {
+        transform.translation += trans.translation();
+        pick_count += 1;
+    }
+    transform.translation /= pick_count as f32;
+
+    main_transform.translation = transform.translation;
+    gizmo.current_interaction = None;
+    gizmo.drag_start = None;
 }
 
 pub fn debug_print_hits(
@@ -321,8 +343,28 @@ pub fn drag_axis(
         }
         TransformGizmoInteraction::ScaleAxis {
             original: _,
-            axis: _,
-        } => {}
+            axis,
+        } => {
+            /*
+            let normalized_translation_axis = (initial_transform.rotation * axis).normalize();
+            let vertical_vector = picking_ray
+                .direction
+                .cross(normalized_translation_axis)
+                .normalize();
+            let plane_normal = normalized_translation_axis
+                .cross(vertical_vector)
+                .normalize();
+            let plane_origin = drag_start;
+            let Some(ray_plane_intersection) =
+                intersect_plane(picking_ray, plane_normal, plane_origin)
+            else {
+                warn!("what? None cursor_plane_intersection");
+                return;
+            };
+            let cursor_vector: Vec3 = ray_plane_intersection - plane_origin;
+            let len = cursor_vector.length();
+            */
+        }
     }
 }
 

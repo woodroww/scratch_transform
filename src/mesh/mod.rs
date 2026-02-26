@@ -2,11 +2,12 @@ use crate::{
     gizmo::{TransformGizmo, TransformGizmoInteraction, click_axis, drag_axis, drag_axis_end},
     gizmo_material::GizmoMaterial,
 };
-use bevy::{light::NotShadowCaster, prelude::*};
+use bevy::{camera::visibility::{Layer, RenderLayers}, light::NotShadowCaster, prelude::*};
 
 pub mod truncated_torus;
 
 const GIZMO_AXIS_LENGTH: f32 = 1.3;
+pub const GIZMO_RENDER_LAYER: Layer = 1;
 
 /// Startup system that builds the procedural mesh and materials of the gizmo.
 pub fn spawn_gizmo(
@@ -64,7 +65,7 @@ pub fn spawn_gizmo(
                         axis: Vec3::X,
                     },
                     NotShadowCaster,
-                    //RenderLayers::layer(12),
+                    RenderLayers::layer(GIZMO_RENDER_LAYER),
                 ))
                 .observe(click_axis)
                 .observe(drag_axis_end)
@@ -82,7 +83,7 @@ pub fn spawn_gizmo(
                         axis: Vec3::Y,
                     },
                     NotShadowCaster,
-                    //RenderLayers::layer(12),
+                    RenderLayers::layer(GIZMO_RENDER_LAYER),
                 ))
                 .observe(click_axis)
                 .observe(drag_axis_end)
@@ -100,7 +101,7 @@ pub fn spawn_gizmo(
                         axis: Vec3::Z,
                     },
                     NotShadowCaster,
-                    //RenderLayers::layer(12),
+                    RenderLayers::layer(GIZMO_RENDER_LAYER),
                 ))
                 .observe(click_axis)
                 .observe(drag_axis_end)
@@ -120,7 +121,7 @@ pub fn spawn_gizmo(
                         axis: Vec3::X,
                     },
                     NotShadowCaster,
-                    //RenderLayers::layer(12),
+                    RenderLayers::layer(GIZMO_RENDER_LAYER),
                 ))
                 .observe(click_axis)
                 .observe(drag_axis_end)
@@ -139,7 +140,7 @@ pub fn spawn_gizmo(
                     },
                     //NoBackfaceCulling,
                     NotShadowCaster,
-                    //RenderLayers::layer(12),
+                    RenderLayers::layer(GIZMO_RENDER_LAYER),
                 ))
                 .observe(click_axis)
                 .observe(drag_axis_end)
@@ -156,7 +157,7 @@ pub fn spawn_gizmo(
                         axis: Vec3::Y,
                     },
                     NotShadowCaster,
-                    //RenderLayers::layer(12),
+                    RenderLayers::layer(GIZMO_RENDER_LAYER),
                 ))
                 .observe(click_axis)
                 .observe(drag_axis_end)
@@ -172,7 +173,7 @@ pub fn spawn_gizmo(
                     },
                     //NoBackfaceCulling,
                     NotShadowCaster,
-                    //RenderLayers::layer(12),
+                    RenderLayers::layer(GIZMO_RENDER_LAYER),
                 ))
                 .observe(click_axis)
                 .observe(drag_axis_end)
@@ -192,7 +193,7 @@ pub fn spawn_gizmo(
                         axis: Vec3::Z,
                     },
                     NotShadowCaster,
-                    //RenderLayers::layer(12),
+                    RenderLayers::layer(GIZMO_RENDER_LAYER),
                 ))
                 .observe(click_axis)
                 .observe(drag_axis_end)
@@ -211,7 +212,7 @@ pub fn spawn_gizmo(
                     },
                     //NoBackfaceCulling,
                     NotShadowCaster,
-                    //RenderLayers::layer(12),
+                    RenderLayers::layer(GIZMO_RENDER_LAYER),
                 ))
                 //.observe(click_plane)
                 //.observe(drag_plane);
@@ -229,7 +230,7 @@ pub fn spawn_gizmo(
                         normal: Vec3::Z,
                     },
                     NotShadowCaster,
-                    //RenderLayers::layer(12),
+                    RenderLayers::layer(GIZMO_RENDER_LAYER),
                 ))
                 //.observe(click_plane)
                 //.observe(drag_plane);
@@ -248,7 +249,7 @@ pub fn spawn_gizmo(
                         axis: Vec3::X,
                     },
                     NotShadowCaster,
-                    //RenderLayers::layer(12),
+                    RenderLayers::layer(GIZMO_RENDER_LAYER),
                 ))
                 //.observe(click_rotate)
                 //.observe(drag_rotate);
@@ -264,7 +265,7 @@ pub fn spawn_gizmo(
                         axis: Vec3::Y,
                     },
                     NotShadowCaster,
-                    //RenderLayers::layer(12),
+                    RenderLayers::layer(GIZMO_RENDER_LAYER),
                 ))
                 //.observe(click_rotate)
                 //.observe(drag_rotate);
@@ -284,7 +285,7 @@ pub fn spawn_gizmo(
                         axis: Vec3::Z,
                     },
                     NotShadowCaster,
-                    //RenderLayers::layer(12),
+                    RenderLayers::layer(GIZMO_RENDER_LAYER),
                 ))
                 //.observe(click_rotate)
                 //.observe(drag_rotate);
