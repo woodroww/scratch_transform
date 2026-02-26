@@ -1,6 +1,12 @@
-use std::env::set_current_dir;
+use std::{
+    env::set_current_dir,
+    f32::consts::{FRAC_PI_2, PI},
+};
 
-use bevy::{color::palettes::css::GREEN, math::ops::atan2, picking::backend::PointerHits, prelude::*, window::PrimaryWindow};
+use bevy::{
+    color::palettes::css::GREEN, math::ops::atan2, picking::backend::PointerHits, prelude::*,
+    window::PrimaryWindow,
+};
 
 use crate::{
     gizmo::debug_vectors::{DebugVectors, DebugVectorsPlugin, RotateDebugVectors},
@@ -72,7 +78,7 @@ pub struct TransformGizmoPlugin;
 impl Plugin for TransformGizmoPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(Startup, crate::mesh::spawn_gizmo)
-           // .add_plugins(DebugVectorsPlugin)
+            .add_plugins(DebugVectorsPlugin)
             .add_plugins(MaterialPlugin::<GizmoMaterial>::default());
     }
 }
@@ -254,17 +260,19 @@ pub fn drag_axis(
 
             gizmo_local_transform.translation = new_translation;
         }
-        TransformGizmoInteraction::TranslatePlane {
-            original: _,
-            normal,
-        } => {
-            let plane_origin = drag_start;
-            let Some(ray_plane_intersection) = intersect_plane(picking_ray, normal, plane_origin)
+        TransformGizmoInteraction::TranslatePlane { original, normal } => {
+            // if this is the center of the gizmo screen space translator
+            let plane_normal = if original == Vec3::ZERO {
+                global_cam_tran.forward().as_vec3()
+            } else {
+                initial_transform.rotation * normal
+            };
+            let Some(ray_plane_intersection) =
+                intersect_plane(picking_ray, plane_normal, drag_start)
             else {
                 warn!("what? None cursor_plane_intersection");
                 return;
             };
-
             let new_transform = Transform {
                 translation: initial_transform.translation + ray_plane_intersection - drag_start,
                 rotation: initial_transform.rotation,
@@ -280,45 +288,36 @@ pub fn drag_axis(
                 warn!("what no screen_pos!");
                 return;
             };
-            // screen_gizmo_center, current_pointer, drag_start
-            //println!("gizmo:   {}", screen_gizmo_center);
+
             let mut start = gizmo.screen_drag_start - screen_gizmo_center;
             start.y = -start.y;
-            //println!("start:   {}", gizmo.screen_drag_start);
-            println!("start:   {}", start);
             let mut current = current_pointer - screen_gizmo_center;
             current.y = -current.y;
-            //println!("current: {}", current_pointer);
-            println!("current: {}", current);
-            let start_angle = atan2(start.y, start.x);
-            println!("start_angle:      {}", start_angle.to_degrees());
-            let current_angle = atan2(current.y, current.x);
-            println!("current_angle:    {}", current_angle.to_degrees());
-            let diff_angle = current_angle - start_angle;
-            println!("diff_angle:       {}", diff_angle.to_degrees());
 
-            //let normalized_translation_axis = (initial_transform.rotation * axis).normalize();
-            let normalized_translation_axis = axis;
+            let mut diff_angle = start.angle_to(current);
 
-            let rotation = Quat::from_axis_angle(normalized_translation_axis, diff_angle);
-            gizmo_local_transform.rotation = initial_transform.rotation * rotation;
+            // Your current logic for calculating rotation through screen-space angles is a solid
+            // start, but it contains a common pitfall: flipping the rotation direction depending
+            // on which "side" of the object you are looking at.
+            // The primary issues in your snippet are the axis reference frame and the missing
+            // view-direction check.
 
-            /*
-            if let Some(mut debug) = rotate_debug_vectors {
-                *debug = RotateDebugVectors {
-                    gizmo_initial_transform: initial_transform,
-                    rotation_axis: normalized_translation_axis,
-                    vertical_vector,
-                    plane_normal,
-                    picking_ray,
-                    plane_origin,
-                    ray_plane_intersection,
-                    dot,
-                    det,
-                    angle: diff_angle.to_degrees(),
-                };
+            // 2. Determine if the axis is pointing "away" from the camera
+            // We use the dot product of the world-space axis and the camera's forward vector
+            let world_axis = initial_transform.rotation * axis;
+            let camera_forward = global_cam_tran.forward();
+
+            // The Dot Product Check: This is the "secret sauce" for 3D gizmos. It ensures that
+            // dragging "clockwise" on the screen always feels like clockwise rotation on the
+            // object, regardless of your perspective.
+            // If the axis and camera-forward point in the same general direction,
+            // the user is looking at the "back" of the rotation plane.
+            if world_axis.dot(*camera_forward) > 0.0 {
+                diff_angle *= -1.0;
             }
-            */
+
+            let rotation = Quat::from_axis_angle(axis, diff_angle);
+            gizmo_local_transform.rotation = initial_transform.rotation * rotation;
         }
         TransformGizmoInteraction::ScaleAxis {
             original: _,

@@ -41,34 +41,44 @@ pub struct DebugVectors {
 
 #[derive(Resource)]
 pub struct RotateDebugVectors {
+    pub cam_forward: Vec3,
+    pub gizmo_forward: Vec3,
+    pub picking_ray: Ray3d,
+    pub arccosine: f32,
+    /*
     pub gizmo_initial_transform: Transform,
     pub rotation_axis: Vec3,
     pub vertical_vector: Vec3,
     pub plane_normal: Vec3,
-    pub picking_ray: Ray3d,
     pub plane_origin: Vec3,           // initial click
     pub ray_plane_intersection: Vec3, // drag location
     pub dot: f32,
     pub det: f32,
     pub angle: f32,
+    */
 }
 
 impl Default for RotateDebugVectors {
     fn default() -> Self {
         Self {
-            gizmo_initial_transform: Transform::default(),
+            cam_forward: Vec3::default(),
+            gizmo_forward: Vec3::default(),
             picking_ray: Ray3d {
                 origin: Vec3::default(),
                 direction: Dir3::new(Vec3::new(1.0, 1.0, 0.0).normalize()).unwrap(),
             },
-            rotation_axis: Vec3::default(),
-            vertical_vector: Vec3::default(),
-            plane_normal: Vec3::default(),
-            plane_origin: Vec3::default(),
-            ray_plane_intersection: Vec3::default(),
-            dot: 0.0,
-            det: 0.0,
-            angle: 0.0,
+            arccosine: 0.0,
+            /*
+                        gizmo_initial_transform: Transform::default(),
+                        rotation_axis: Vec3::default(),
+                        vertical_vector: Vec3::default(),
+                        plane_normal: Vec3::default(),
+                        plane_origin: Vec3::default(),
+                        ray_plane_intersection: Vec3::default(),
+                        dot: 0.0,
+                        det: 0.0,
+                        angle: 0.0,
+            */
         }
     }
 }
@@ -76,15 +86,20 @@ impl Default for RotateDebugVectors {
 impl RotateDebugVectors {
     fn value(&self, which: WhichRotateVector) -> Vec3 {
         match which {
-            WhichRotateVector::RotationAxis => self.rotation_axis,
-            WhichRotateVector::VerticalVector => self.vertical_vector,
-            WhichRotateVector::PlaneNormal => self.plane_normal,
-            WhichRotateVector::PlaneOrigin => self.plane_origin,
-            WhichRotateVector::RayPlaneIntersection => self.ray_plane_intersection,
+            WhichRotateVector::CamForward => self.cam_forward,
+            WhichRotateVector::GizmoForward => self.gizmo_forward,
             WhichRotateVector::PickingRay => *self.picking_ray.direction,
-            WhichRotateVector::Dot => Vec3::splat(self.dot.to_degrees()),
-            WhichRotateVector::Det => Vec3::splat(self.det.to_degrees()),
-            WhichRotateVector::Angle => Vec3::splat(self.angle.to_degrees()),
+            WhichRotateVector::ArcCosine => Vec3::new(self.arccosine, self.arccosine.to_degrees(), 0.0),
+            /*
+                        WhichRotateVector::RotationAxis => self.rotation_axis,
+                        WhichRotateVector::VerticalVector => self.vertical_vector,
+                        WhichRotateVector::PlaneNormal => self.plane_normal,
+                        WhichRotateVector::PlaneOrigin => self.plane_origin,
+                        WhichRotateVector::RayPlaneIntersection => self.ray_plane_intersection,
+                        WhichRotateVector::Dot => Vec3::splat(self.dot.to_degrees()),
+                        WhichRotateVector::Det => Vec3::splat(self.det.to_degrees()),
+                        WhichRotateVector::Angle => Vec3::splat(self.angle.to_degrees()),
+            */
         }
     }
 }
@@ -167,7 +182,11 @@ pub enum WhichDebugVector {
 
 #[derive(Component, Copy, Clone, Debug)]
 pub enum WhichRotateVector {
+    CamForward,
+    GizmoForward,
     PickingRay,
+    ArcCosine,
+    /*
     RotationAxis,
     VerticalVector,
     PlaneNormal,
@@ -176,6 +195,7 @@ pub enum WhichRotateVector {
     Dot,
     Det,
     Angle,
+    */
 }
 
 impl WhichRotateVector {
@@ -191,30 +211,41 @@ impl WhichRotateVector {
     fn color(&self) -> Color {
         use WhichRotateVector::*;
         match self {
-            PickingRay => PURPLE.into(),
-            RotationAxis => AQUA.into(),
-            VerticalVector => GREEN.into(),
-            PlaneNormal => RED.into(),
-            PlaneOrigin => YELLOW.into(),
-            RayPlaneIntersection => LIME.into(),
-            Dot => WHITE.into(),
-            Det => WHITE.into(),
-            Angle => ORANGE.into(),
+            CamForward => PURPLE.into(),
+            GizmoForward => YELLOW.into(),
+            PickingRay => GREEN.into(),
+            ArcCosine => AQUA.into(),
+            /*
+                        RotationAxis => AQUA.into(),
+                        VerticalVector => GREEN.into(),
+                        PlaneNormal => RED.into(),
+                        PlaneOrigin => YELLOW.into(),
+                        RayPlaneIntersection => LIME.into(),
+                        Dot => WHITE.into(),
+                        Det => WHITE.into(),
+                        Angle => ORANGE.into(),
+            */
         }
     }
 }
 
 fn rotate_ui(
     ui: &mut Ui,
-    gizmo_transform: &Transform,
-    gizmo: &TransformGizmo,
+    _gizmo_transform: &Transform,
+    _gizmo: &TransformGizmo,
     vectors: &RotateDebugVectors,
 ) {
     ui.label("Rotate");
     let interesting = [
-        WhichRotateVector::Angle,
-        WhichRotateVector::Det,
-        WhichRotateVector::Dot,
+        WhichRotateVector::CamForward,
+        WhichRotateVector::GizmoForward,
+        WhichRotateVector::PickingRay,
+        WhichRotateVector::ArcCosine,
+        /*
+                WhichRotateVector::Angle,
+                WhichRotateVector::Det,
+                WhichRotateVector::Dot,
+        */
     ];
     for item in interesting {
         let mut text = RichText::new(format!("{:?}\n{:.2}", item, vectors.value(item)))
@@ -227,7 +258,7 @@ fn rotate_ui(
 fn drag_ui(
     ui: &mut Ui,
     gizmo_transform: &Transform,
-    gizmo: &TransformGizmo,
+    _gizmo: &TransformGizmo,
     vectors: &DebugVectors,
 ) {
     ui.label(format!(
@@ -412,65 +443,25 @@ pub fn setup_rotation_vectors(
 ) {
     spawn_arrow_vector(
         commands.reborrow(),
+        WhichRotateVector::CamForward,
+        WhichRotateVector::CamForward.color(),
+        &mut meshes,
+        &mut materials,
+    );
+    spawn_arrow_vector(
+        commands.reborrow(),
+        WhichRotateVector::GizmoForward,
+        WhichRotateVector::GizmoForward.color(),
+        &mut meshes,
+        &mut materials,
+    );
+    spawn_arrow_vector(
+        commands.reborrow(),
         WhichRotateVector::PickingRay,
         WhichRotateVector::PickingRay.color(),
         &mut meshes,
         &mut materials,
     );
-    spawn_arrow_vector(
-        commands.reborrow(),
-        WhichRotateVector::RotationAxis,
-        WhichRotateVector::RotationAxis.color(),
-        &mut meshes,
-        &mut materials,
-    );
-    spawn_arrow_vector(
-        commands.reborrow(),
-        WhichRotateVector::VerticalVector,
-        WhichRotateVector::VerticalVector.color(),
-        &mut meshes,
-        &mut materials,
-    );
-
-    spawn_arrow_vector(
-        commands.reborrow(),
-        WhichRotateVector::PlaneNormal,
-        WhichRotateVector::PlaneNormal.color(),
-        &mut meshes,
-        &mut materials,
-    );
-    commands
-        .spawn((
-            WhichRotateVector::PlaneOrigin,
-            Transform::default(),
-            Visibility::Visible,
-        ))
-        .with_children(|parent| {
-            parent.spawn((
-                Mesh3d(meshes.add(Cuboid::new(1.0, 0.01, 1.0))),
-                MeshMaterial3d(materials.add(StandardMaterial {
-                    base_color: WhichRotateVector::PlaneOrigin.color(),
-                    ..default()
-                })),
-                Wireframe,
-            ));
-        });
-
-    commands
-        .spawn((
-            WhichRotateVector::RayPlaneIntersection,
-            Transform::default(),
-            Visibility::Visible,
-        ))
-        .with_children(|parent| {
-            parent.spawn((
-                Mesh3d(meshes.add(Sphere::new(0.05))),
-                MeshMaterial3d(materials.add(StandardMaterial {
-                    base_color: WhichRotateVector::RayPlaneIntersection.color(),
-                    ..default()
-                })),
-            ));
-        });
 }
 
 pub fn update_rotation_vectors(
@@ -479,44 +470,20 @@ pub fn update_rotation_vectors(
 ) {
     for (vector, mut transform) in query {
         match vector {
+            WhichRotateVector::CamForward => {
+                let local_forward = Vec3::Y;
+                transform.rotation = Quat::from_rotation_arc(local_forward, vectors.cam_forward);
+            }
+            WhichRotateVector::GizmoForward => {
+                let local_forward = Vec3::Y;
+                transform.rotation = Quat::from_rotation_arc(local_forward, vectors.gizmo_forward);
+            }
             WhichRotateVector::PickingRay => {
                 let local_forward = Vec3::Y;
                 transform.rotation =
                     Quat::from_rotation_arc(local_forward, *vectors.picking_ray.direction);
-                let diff = vectors.ray_plane_intersection - vectors.picking_ray.origin;
-                let len = diff.length();
-                let mult = len / AXIS_LENGTH;
-                transform.scale.y = mult;
-                transform.translation = vectors.picking_ray.origin;
             }
-            WhichRotateVector::RotationAxis => {
-                let local_forward = Vec3::Y;
-                transform.rotation = Quat::from_rotation_arc(local_forward, vectors.rotation_axis);
-                transform.translation = vectors.gizmo_initial_transform.translation;
-                transform.scale.y = 2.0;
-            }
-            WhichRotateVector::VerticalVector => {
-                let local_forward = Vec3::Y;
-                transform.rotation =
-                    Quat::from_rotation_arc(local_forward, vectors.vertical_vector);
-            }
-            WhichRotateVector::PlaneOrigin => {
-                let local_forward = Vec3::Y;
-                transform.rotation = Quat::from_rotation_arc(local_forward, vectors.plane_normal);
-                transform.translation = vectors.plane_origin;
-            }
-            WhichRotateVector::PlaneNormal => {
-                let local_forward = Vec3::Y;
-                transform.rotation = Quat::from_rotation_arc(local_forward, vectors.plane_normal);
-                transform.translation = vectors.plane_origin;
-            }
-
-            WhichRotateVector::RayPlaneIntersection => {
-                transform.translation = vectors.ray_plane_intersection;
-            }
-            WhichRotateVector::Dot => {}
-            WhichRotateVector::Det => {}
-            WhichRotateVector::Angle => {}
+            WhichRotateVector::ArcCosine => {},
         }
     }
 }
@@ -588,7 +555,7 @@ pub fn hide_drag_vectors(
 /// from the resource of DebugVectors
 pub fn update_debug_vectors(
     vectors: Res<DebugVectors>,
-    mut query: Query<(&WhichDebugVector, &mut Transform, &mut Visibility)>,
+    query: Query<(&WhichDebugVector, &mut Transform, &mut Visibility)>,
 ) {
     for (vector, mut transform, _) in query {
         match vector {
