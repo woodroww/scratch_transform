@@ -1,5 +1,5 @@
 use crate::{
-    gizmo::{TransformGizmo, TransformGizmoInteraction, click_axis, drag_axis, drag_axis_end},
+    gizmo::{TransformGizmo, TransformGizmoInteraction, drag_start, drag_axis, drag_end},
     gizmo_material::GizmoMaterial,
 };
 use bevy::{camera::visibility::{Layer, RenderLayers}, light::NotShadowCaster, prelude::*};
@@ -67,8 +67,8 @@ pub fn spawn_gizmo(
                     NotShadowCaster,
                     RenderLayers::layer(GIZMO_RENDER_LAYER),
                 ))
-                .observe(click_axis)
-                .observe(drag_axis_end)
+                .observe(drag_start)
+                .observe(drag_end)
                 .observe(drag_axis);
             parent
                 .spawn((
@@ -85,8 +85,8 @@ pub fn spawn_gizmo(
                     NotShadowCaster,
                     RenderLayers::layer(GIZMO_RENDER_LAYER),
                 ))
-                .observe(click_axis)
-                .observe(drag_axis_end)
+                .observe(drag_start)
+                .observe(drag_end)
                 .observe(drag_axis);
             parent
                 .spawn((
@@ -103,8 +103,8 @@ pub fn spawn_gizmo(
                     NotShadowCaster,
                     RenderLayers::layer(GIZMO_RENDER_LAYER),
                 ))
-                .observe(click_axis)
-                .observe(drag_axis_end)
+                .observe(drag_start)
+                .observe(drag_end)
                 .observe(drag_axis);
 
             // Translation Handles
@@ -123,8 +123,8 @@ pub fn spawn_gizmo(
                     NotShadowCaster,
                     RenderLayers::layer(GIZMO_RENDER_LAYER),
                 ))
-                .observe(click_axis)
-                .observe(drag_axis_end)
+                .observe(drag_start)
+                .observe(drag_end)
                 .observe(drag_axis);
             parent
                 .spawn((
@@ -142,8 +142,8 @@ pub fn spawn_gizmo(
                     NotShadowCaster,
                     RenderLayers::layer(GIZMO_RENDER_LAYER),
                 ))
-                .observe(click_axis)
-                .observe(drag_axis_end)
+                .observe(drag_start)
+                .observe(drag_end)
                 .observe(drag_axis);
                 //.observe(click_plane)
                 //.observe(drag_plane);
@@ -159,8 +159,8 @@ pub fn spawn_gizmo(
                     NotShadowCaster,
                     RenderLayers::layer(GIZMO_RENDER_LAYER),
                 ))
-                .observe(click_axis)
-                .observe(drag_axis_end)
+                .observe(drag_start)
+                .observe(drag_end)
                 .observe(drag_axis);
             parent
                 .spawn((
@@ -175,8 +175,8 @@ pub fn spawn_gizmo(
                     NotShadowCaster,
                     RenderLayers::layer(GIZMO_RENDER_LAYER),
                 ))
-                .observe(click_axis)
-                .observe(drag_axis_end)
+                .observe(drag_start)
+                .observe(drag_end)
                 .observe(drag_axis);
                 //.observe(click_plane)
                 //.observe(drag_plane);
@@ -195,8 +195,8 @@ pub fn spawn_gizmo(
                     NotShadowCaster,
                     RenderLayers::layer(GIZMO_RENDER_LAYER),
                 ))
-                .observe(click_axis)
-                .observe(drag_axis_end)
+                .observe(drag_start)
+                .observe(drag_end)
                 .observe(drag_axis);
             parent
                 .spawn((
@@ -216,8 +216,8 @@ pub fn spawn_gizmo(
                 ))
                 //.observe(click_plane)
                 //.observe(drag_plane);
-                .observe(click_axis)
-                .observe(drag_axis_end)
+                .observe(drag_start)
+                .observe(drag_end)
                 .observe(drag_axis);
 
             // screen space drag sphere
@@ -234,8 +234,8 @@ pub fn spawn_gizmo(
                 ))
                 //.observe(click_plane)
                 //.observe(drag_plane);
-                .observe(click_axis)
-                .observe(drag_axis_end)
+                .observe(drag_start)
+                .observe(drag_end)
                 .observe(drag_axis);
 
             // Rotation Arcs
@@ -253,8 +253,8 @@ pub fn spawn_gizmo(
                 ))
                 //.observe(click_rotate)
                 //.observe(drag_rotate);
-                .observe(click_axis)
-                .observe(drag_axis_end)
+                .observe(drag_start)
+                .observe(drag_end)
                 .observe(drag_axis);
             parent
                 .spawn((
@@ -269,8 +269,8 @@ pub fn spawn_gizmo(
                 ))
                 //.observe(click_rotate)
                 //.observe(drag_rotate);
-                .observe(click_axis)
-                .observe(drag_axis_end)
+                .observe(drag_start)
+                .observe(drag_end)
                 .observe(drag_axis);
             parent
                 .spawn((
@@ -289,8 +289,8 @@ pub fn spawn_gizmo(
                 ))
                 //.observe(click_rotate)
                 //.observe(drag_rotate);
-                .observe(click_axis)
-                .observe(drag_axis_end)
+                .observe(drag_start)
+                .observe(drag_end)
                 .observe(drag_axis);
         });
 }

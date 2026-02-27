@@ -1,7 +1,4 @@
-use bevy::{
-    picking::backend::PointerHits, prelude::*,
-    window::PrimaryWindow,
-};
+use bevy::{picking::backend::PointerHits, prelude::*, window::PrimaryWindow};
 
 use crate::{
     gizmo::debug_vectors::{DebugVectors, DebugVectorsPlugin, RotateDebugVectors},
@@ -13,9 +10,10 @@ pub mod debug_vectors;
 #[derive(Component)]
 pub struct GizmoPickSource;
 
-#[derive(Component, Debug)]
+#[derive(Component, Debug, Default)]
 pub struct PickSelection {
     pub is_selected: bool,
+    pub initial_transform: Transform,
 }
 
 /// Marks the current active gizmo interaction
@@ -83,12 +81,14 @@ fn check_selection(
     mut query: Query<(Entity, &PickSelection, &GlobalTransform), Without<TransformGizmo>>,
     mut gizmo: Query<(&mut Transform, &mut TransformGizmo)>,
 ) {
-    let Ok((mut main_transform, mut gizmo)) = gizmo.single_mut()
-    else {
+    //let selected: Vec<_> = query.iter().filter(|(_, p, _)| p.is_selected).collect();
+    //info!("selected.len() {}", selected.len());
+
+    let Ok((mut gizmo_transform, mut gizmo)) = gizmo.single_mut() else {
         warn!("getting main gizmo error");
         return;
     };
-    if gizmo.drag_start.is_some() {
+    if gizmo.current_interaction.is_some() {
         return;
     }
 
@@ -96,11 +96,15 @@ fn check_selection(
     let mut pick_count = 0;
     for (_entity, _pick, trans) in query.iter_mut().filter(|(_, p, _)| p.is_selected) {
         transform.translation += trans.translation();
+        transform.rotation = trans.rotation();
         pick_count += 1;
     }
     transform.translation /= pick_count as f32;
 
-    main_transform.translation = transform.translation;
+    gizmo_transform.translation = transform.translation;
+    gizmo_transform.rotation = transform.rotation;
+
+    // rotation ? scale ?
     gizmo.current_interaction = None;
     gizmo.drag_start = None;
 }
@@ -134,16 +138,14 @@ pub fn debug_print_hits(
     }
 }
 
-pub fn click_axis(
+pub fn drag_start(
     drag: On<Pointer<DragStart>>,
-    transform_query: Query<
-        (&TransformGizmoInteraction, Option<&ChildOf>, &mut Transform),
-        Without<TransformGizmo>,
-    >,
+    interaction_query: Query<&TransformGizmoInteraction, Without<TransformGizmo>>,
     mut gizmo: Query<(&GlobalTransform, &Transform, &mut TransformGizmo)>,
     mut hit_reader: MessageReader<PointerHits>,
+    mut item_query: Query<(&Transform, &mut PickSelection), Without<TransformGizmo>>,
 ) {
-    debug_assert_eq!(transform_query.iter().len(), 13);
+    debug_assert_eq!(interaction_query.iter().len(), 13);
 
     let mut min_depth = f32::MAX;
     let mut min_entity = None;
@@ -185,7 +187,15 @@ pub fn click_axis(
         return;
     };
 
-    let Ok((interaction, _child_of, _transform)) = transform_query.get(drag.entity) else {
+    for (selected_transform, mut pick) in item_query
+        .iter_mut()
+        .filter(|(_, pick)| pick.is_selected)
+    {
+        println!("saving initial_transform");
+        pick.initial_transform = *selected_transform;
+    }
+
+    let Ok(interaction) = interaction_query.get(drag.entity) else {
         warn!("transform_query couldn't find entity from click");
         return;
     };
@@ -202,8 +212,9 @@ pub fn drag_axis(
     pick_cam: Query<(&Camera, &GlobalTransform), With<GizmoPickSource>>,
     windows: Query<&mut Window, With<PrimaryWindow>>,
     mut gizmo_query: Query<(&mut Transform, &GlobalTransform, &mut TransformGizmo)>,
-    mut debug_vectors: Option<ResMut<DebugVectors>>,
-    mut rotate_debug_vectors: Option<ResMut<RotateDebugVectors>>,
+    debug_vectors: Option<ResMut<DebugVectors>>,
+    //mut rotate_debug_vectors: Option<ResMut<RotateDebugVectors>>,
+    mut item_query: Query<(&mut Transform, &PickSelection), Without<TransformGizmo>>,
 ) {
     let Ok((mut gizmo_local_transform, _gizmo_global_transform, gizmo)) = gizmo_query.single_mut()
     else {
@@ -281,6 +292,13 @@ pub fn drag_axis(
             }
 
             gizmo_local_transform.translation = new_translation;
+
+            for (mut selected_transform, pick) in
+                item_query.iter_mut().filter(|(_, pick)| pick.is_selected)
+            {
+                println!("selected_transform");
+                selected_transform.translation = pick.initial_transform.translation + translation;
+            }
         }
         TransformGizmoInteraction::TranslatePlane { original, normal } => {
             // if this is the center of the gizmo screen space translator
@@ -295,13 +313,15 @@ pub fn drag_axis(
                 warn!("what? None cursor_plane_intersection");
                 return;
             };
-            let new_transform = Transform {
-                translation: initial_transform.translation + ray_plane_intersection - drag_start,
-                rotation: initial_transform.rotation,
-                scale: initial_transform.scale,
-            };
+            let translation = ray_plane_intersection - drag_start;
+            gizmo_local_transform.translation = gizmo.initial_transform.translation + translation;
 
-            *gizmo_local_transform = new_transform;
+            for (mut selected_transform, pick) in
+                item_query.iter_mut().filter(|(_, pick)| pick.is_selected)
+            {
+                println!("selected_transform");
+                selected_transform.translation = pick.initial_transform.translation + translation;
+            }
         }
         TransformGizmoInteraction::RotateAxis { original: _, axis } => {
             let Ok(screen_gizmo_center) =
@@ -340,11 +360,14 @@ pub fn drag_axis(
 
             let rotation = Quat::from_axis_angle(axis, diff_angle);
             gizmo_local_transform.rotation = initial_transform.rotation * rotation;
+
+            for (mut selected_transform, pick) in
+                item_query.iter_mut().filter(|(_, pick)| pick.is_selected)
+            {
+                selected_transform.rotation = pick.initial_transform.rotation * rotation; 
+            }
         }
-        TransformGizmoInteraction::ScaleAxis {
-            original: _,
-            axis,
-        } => {
+        TransformGizmoInteraction::ScaleAxis { original: _, axis } => {
             /*
             let normalized_translation_axis = (initial_transform.rotation * axis).normalize();
             let vertical_vector = picking_ray
@@ -368,7 +391,7 @@ pub fn drag_axis(
     }
 }
 
-pub fn drag_axis_end(
+pub fn drag_end(
     _drag: On<Pointer<DragEnd>>,
     mut commands: Commands,
     transform_query: Query<
@@ -380,5 +403,14 @@ pub fn drag_axis_end(
         ),
         Without<TransformGizmo>,
     >,
+    mut gizmo: Query<&mut TransformGizmo>,
 ) {
+    let Ok(mut gizmo) = gizmo.single_mut() else {
+        warn!("getting main gizmo error");
+        return;
+    };
+
+    gizmo.current_interaction = None;
+    gizmo.drag_start = None;
+    info!("drag_end");
 }

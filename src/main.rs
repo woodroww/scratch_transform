@@ -1,10 +1,11 @@
-use bevy::{camera::visibility::RenderLayers, gizmos::GizmoPlugin, pbr::wireframe::WireframePlugin, prelude::*};
+use bevy::{camera::visibility::RenderLayers, pbr::wireframe::WireframePlugin, prelude::*};
 use bevy_inspector_egui::bevy_egui::EguiPlugin;
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
 use bevy_panorbit_camera::{PanOrbitCamera, PanOrbitCameraPlugin};
 use scratch_transform::{
     axis::AxisPlugin,
-    gizmo::{GizmoPickSource, PickSelection, TransformGizmoPlugin}, mesh::GIZMO_RENDER_LAYER,
+    gizmo::{GizmoPickSource, PickSelection, TransformGizmoPlugin},
+    mesh::GIZMO_RENDER_LAYER,
 };
 
 fn main() {
@@ -31,12 +32,12 @@ fn setup(
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
     // plane
-        commands.spawn((
-            Mesh3d(meshes.add(Plane3d::default())),
-            MeshMaterial3d(materials.add(Color::srgb(0.3, 0.5, 0.3))),
-            Transform::from_translation(Vec3::new(0.0, -0.5, 0.0)).with_scale(Vec3::splat(5.0)),
-            PickSelection { is_selected: false },
-        ));
+    commands.spawn((
+        Mesh3d(meshes.add(Plane3d::default())),
+        MeshMaterial3d(materials.add(Color::srgb(0.3, 0.5, 0.3))),
+        Transform::from_translation(Vec3::new(0.0, -0.5, 0.0)).with_scale(Vec3::splat(5.0)),
+        PickSelection::default(),
+    ));
 
     let tan = Color::srgb_u8(204, 178, 153);
     let red = Color::srgb_u8(127, 26, 26);
@@ -47,7 +48,7 @@ fn setup(
             Mesh3d(meshes.add(Cuboid::from_size(Vec3::splat(1.0)))),
             MeshMaterial3d(materials.add(StandardMaterial::from(red))),
             Transform::from_xyz(-1.0, 0.0, 0.0),
-            PickSelection { is_selected: false },
+            PickSelection::default(),
             Visibility::Visible,
         ))
         .observe(cube_click)
@@ -57,7 +58,7 @@ fn setup(
                     Mesh3d(meshes.add(Cuboid::from_size(Vec3::splat(1.0)))),
                     MeshMaterial3d(materials.add(StandardMaterial::from(tan))),
                     Transform::from_xyz(1.0, 0.0, 0.0),
-                    PickSelection { is_selected: false },
+                    PickSelection::default(),
                 ))
                 .observe(cube_click);
             commands
@@ -65,7 +66,7 @@ fn setup(
                     Mesh3d(meshes.add(Cuboid::from_size(Vec3::splat(1.0)))),
                     MeshMaterial3d(materials.add(StandardMaterial::from(tan))),
                     Transform::from_xyz(1.0, 1.0, 0.0),
-                    PickSelection { is_selected: false },
+                    PickSelection::default(),
                 ))
                 .observe(cube_click);
         });

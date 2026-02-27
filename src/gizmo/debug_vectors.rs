@@ -89,7 +89,9 @@ impl RotateDebugVectors {
             WhichRotateVector::CamForward => self.cam_forward,
             WhichRotateVector::GizmoForward => self.gizmo_forward,
             WhichRotateVector::PickingRay => *self.picking_ray.direction,
-            WhichRotateVector::ArcCosine => Vec3::new(self.arccosine, self.arccosine.to_degrees(), 0.0),
+            WhichRotateVector::ArcCosine => {
+                Vec3::new(self.arccosine, self.arccosine.to_degrees(), 0.0)
+            }
             /*
                         WhichRotateVector::RotationAxis => self.rotation_axis,
                         WhichRotateVector::VerticalVector => self.vertical_vector,
@@ -294,8 +296,8 @@ pub fn debug_ui(
     let ctx = contexts.ctx_mut().unwrap();
     egui::Window::new("DebugVectors").show(ctx, |ui| {
         if let Ok((transform, gizmo)) = gizmo_query.single() {
-            if let Some(interaction) = gizmo.current_interaction {
-                match interaction {
+            match gizmo.current_interaction {
+                Some(interaction) => match interaction {
                     crate::gizmo::TransformGizmoInteraction::TranslateAxis {
                         original: _,
                         axis: _,
@@ -316,6 +318,9 @@ pub fn debug_ui(
                         original: _,
                         axis: _,
                     } => {}
+                },
+                None => {
+                    ui.label("No gizmo interaction");
                 }
             }
         } else {
@@ -483,7 +488,7 @@ pub fn update_rotation_vectors(
                 transform.rotation =
                     Quat::from_rotation_arc(local_forward, *vectors.picking_ray.direction);
             }
-            WhichRotateVector::ArcCosine => {},
+            WhichRotateVector::ArcCosine => {}
         }
     }
 }
@@ -509,40 +514,30 @@ pub fn hide_drag_vectors(
                 for (_vector, _transform, mut visibility) in axis_query.iter_mut() {
                     *visibility = Visibility::Inherited;
                 }
+                for (_vector, _transform, mut visibility) in rotate_query.iter_mut() {
+                    *visibility = Visibility::Hidden;
+                }
             }
             TranslatePlane { .. } => {
                 for (_vector, _transform, mut visibility) in axis_query.iter_mut() {
                     *visibility = Visibility::Inherited;
+                }
+                for (_vector, _transform, mut visibility) in rotate_query.iter_mut() {
+                    *visibility = Visibility::Hidden;
                 }
             }
             RotateAxis { .. } => {
                 for (_vector, _transform, mut visibility) in axis_query.iter_mut() {
                     *visibility = Visibility::Hidden;
                 }
-            }
-            ScaleAxis { .. } => {
-                for (_vector, _transform, mut visibility) in axis_query.iter_mut() {
-                    *visibility = Visibility::Hidden;
-                }
-            }
-        }
-        match interaction {
-            TranslateAxis { .. } => {
-                for (_vector, _transform, mut visibility) in rotate_query.iter_mut() {
-                    *visibility = Visibility::Hidden;
-                }
-            }
-            TranslatePlane { .. } => {
-                for (_vector, _transform, mut visibility) in rotate_query.iter_mut() {
-                    *visibility = Visibility::Hidden;
-                }
-            }
-            RotateAxis { .. } => {
                 for (_vector, _transform, mut visibility) in rotate_query.iter_mut() {
                     *visibility = Visibility::Inherited;
                 }
             }
             ScaleAxis { .. } => {
+                for (_vector, _transform, mut visibility) in axis_query.iter_mut() {
+                    *visibility = Visibility::Hidden;
+                }
                 for (_vector, _transform, mut visibility) in rotate_query.iter_mut() {
                     *visibility = Visibility::Inherited;
                 }
